@@ -7,6 +7,7 @@
 ;;; Copyright © 2015 Taylan Ulrich Bayırlı/Kammer <taylanbayirli@gmail.com>
 ;;; Copyright © 2015, 2016 Eric Bavier <bavier@member.fsf.org>
 ;;; Copyright © 2015 Eric Dvorsak <eric@dvorsak.fr>
+;;; Copyright © 2016 Jelle Licht <jlicht@fsfe.org>
 ;;;
 ;;; This file is part of GNU Guix.
 ;;;
@@ -56,6 +57,7 @@
   #:use-module (gnu packages curl)
   #:use-module (gnu packages perl)
   #:use-module (gnu packages texinfo)
+  #:use-module (gnu packages textutils)
   #:use-module (gnu packages tls)
   #:use-module (gnu packages statistics))
 
@@ -3109,3 +3111,22 @@ callback or connection interfaces.")
      "Gumbo is an implementation of the HTML5 parsing algorithm implemented as
 a pure C99 library.")
     (license l:asl2.0)))
+
+(define-public jq
+  (package
+    (name "jq")
+    (version "1.5")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "https://github.com/stedolan/"
+                                  "jq/archive/" name "-" version ".tar.gz"))
+              (sha256
+               (base32
+                "0r9wac540z8p663xd8gnzgbzxcnqkdzkxs0dwz0x09wcs90pcrnm"))))
+    (inputs
+     `(("oniguruma" ,oniguruma)))
+    (build-system gnu-build-system)
+    (home-page "http://stedolan.github.io/jq/")
+    (synopsis "Command-line JSON processor")
+    (description "jq is a lightweight and flexible command-line JSON processor.")
+    (license l:cc-by3.0)))
