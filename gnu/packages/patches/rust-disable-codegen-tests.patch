@@ -1,0 +1,64 @@
+From a3fdde7453d82870868a1bf8db448afcf966fb34 Mon Sep 17 00:00:00 2001
+From: Alex Crichton <alex@alexcrichton.com>
+Date: Wed, 9 Mar 2016 19:11:02 -0800
+Subject: [PATCH] mk: Add configure option for disabling codegen tests
+
+Our `codegen` test suite requires the LLVM `FileCheck` utility but unfortunately
+this isn't always available in all custom LLVM roots (e.g. those specified via
+`--llvm-root`). This commit adds a `./configure` option called
+`--disable-codegen-tests` which will manually disable running these tests. In
+the case that this option is passed we can forgo the need for the `FileCheck`
+executable. Note that we still require `FileCheck` by default as we will attempt
+to run these tests.
+
+Closes #28667
+---
+ configure   | 5 ++++-
+ mk/tests.mk | 8 ++++++--
+ 2 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/configure b/configure
+index 2a18bee..da5468a 100755
+--- a/configure
++++ b/configure
+@@ -608,6 +608,7 @@ opt dist-host-only 0 "only install bins for the host architecture"
+ opt inject-std-version 1 "inject the current compiler version of libstd into pro
+ opt llvm-version-check 1 "check if the LLVM version is supported, build anyway"
+ opt rustbuild 0 "use the rust and cargo based build system"
++opt codegen-tests 1 "run the src/test/codegen tests"
+ 
+ # Optimization and debugging options. These may be overridden by the release channel, etc.
+ opt_nosave optimize 1 "build optimized rust code"
+@@ -1497,7 +1498,9 @@ do
+         LLVM_INST_DIR=$CFG_LLVM_ROOT
+         do_reconfigure=0
+         # Check that LLVm FileCheck is available. Needed for the tests
+-        need_cmd $LLVM_INST_DIR/bin/FileCheck
++        if [ -z "$CFG_DISABLE_CODEGEN_TESTS" ]; then
++            need_cmd $LLVM_INST_DIR/bin/FileCheck
++        fi
+     fi
+ 
+     if [ ${do_reconfigure} -ne 0 ]
+diff --git a/mk/tests.mk b/mk/tests.mk
+index 50c060c..1a02b5c 100644
+--- a/mk/tests.mk
++++ b/mk/tests.mk
+@@ -305,11 +305,15 @@ check-stage$(1)-T-$(2)-H-$(3)-exec: \
+ 	check-stage$(1)-T-$(2)-H-$(3)-doc-crates-exec \
+ 	check-stage$(1)-T-$(2)-H-$(3)-debuginfo-gdb-exec \
+ 	check-stage$(1)-T-$(2)-H-$(3)-debuginfo-lldb-exec \
+-	check-stage$(1)-T-$(2)-H-$(3)-codegen-exec \
+-	check-stage$(1)-T-$(2)-H-$(3)-codegen-units-exec \
+ 	check-stage$(1)-T-$(2)-H-$(3)-doc-exec \
+ 	check-stage$(1)-T-$(2)-H-$(3)-pretty-exec
+ 
++ifndef CFG_DISABLE_CODEGEN_TESTS
++check-stage$(1)-T-$(2)-H-$(3)-exec: \
++	check-stage$(1)-T-$(2)-H-$(3)-codegen-exec \
++	check-stage$(1)-T-$(2)-H-$(3)-codegen-units-exec
++endif
++
+ # Only test the compiler-dependent crates when the target is
+ # able to build a compiler (when the target triple is in the set of host triples)
+ ifneq ($$(findstring $(2),$$(CFG_HOST)),)
