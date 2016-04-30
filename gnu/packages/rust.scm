@@ -34,7 +34,18 @@
   #:use-module (gnu packages version-control)
   #:use-module (gnu packages curl)
   #:use-module (gnu packages python)
-  #:use-module (gnu packages llvm))
+  #:use-module (gnu packages llvm)
+  #:use-module (gnu packages jemalloc))
+
+
+;; XXX: 
+;; patch-shebang: ./src/llvm/utils/llvm-compilers-check: warning: no binary for interpreter `python3' found in $PATH
+;; patch-shebang: ./src/llvm/utils/makellvm: warning: no binary for interpreter `csh' found in $PATH
+;; x86_64-unknown-linux-gnu/stage0/bin/rustc:
+;; /gnu/store/b1yqjimbdh5bf9jnizd4h7yf110744j2-bash-4.3.42/bin/bash: x86_64-unknown-linux-gnu/stage0/bin/rustc: No such file or directory
+;; /gnu/store/b...-bash-4.3.42/bin/bash: some/dir/rustc: No such file or directory
+
+
 
 ;;(list
 ;; (string-append
@@ -120,10 +131,10 @@
 
 ;; ./configure --local-rust-root=rustc --enable-rust-root
 ;;(define-public rustc
-
+                                        ; rust-stage0-2016-02-17-4d3eebf-linux-x86_64-d29b7607d13d64078b6324aec82926fb493f59ba.tar.bz2jj
 (define-public rust
   (let* ((bootstrap-name "rust-stage0")
-         (bootstrap-version "2016-02-17-4d3eebf-linux-i386-5f194aa7628c0703f0fd48adc4ec7f3cc64b98c7")
+         (bootstrap-version "2016-02-17-4d3eebf-linux-x86_64-d29b7607d13d64078b6324aec82926fb493f59ba")
          (rust-bootstrap (origin
                           (method url-fetch)
                           (uri (string-append
@@ -131,7 +142,8 @@
                                 bootstrap-version ".tar.bz2"))
                           (sha256
                            (base32
-                            "16fd2hmli86g1q3fyicdhh2l4aqryzxcij7sk1pljig8dr2m8hg5")))))
+                            "0gk87rknijyirlhw3h34bjxzq98j0v0icp3l8flrxn5pgil8pswd")))))
+    ;
     (package
       (name "rust")
       (version "1.8.0")
@@ -152,7 +164,8 @@
                   "0jblby81qlbz4csdldsv7hqrcbfwsaa79q265bgb8kcdgqa6ci5g"
                   ))
                 (patches
-                 (search-patches "rust-disable-codegen-tests.patch"))))
+                 (search-patches "rust-disable-codegen-tests.patch"
+                                 "rustc-env-workaround.patch"))))
       (build-system gnu-build-system)
       (arguments
        `(#:phases
@@ -164,14 +177,16 @@
                            ;; This old `configure' script doesn't support
                            ;; variables passed as arguments.
                            (let ((out (assoc-ref outputs "out"))
-                                 (llvm (assoc-ref %build-inputs "llvm")))
+                                 (llvm (assoc-ref %build-inputs "llvm"))
+                                 (jemalloc (assoc-ref %build-inputs "jemalloc")))
                              (setenv "CONFIG_SHELL" (which "bash"))
                              (zero?
                               (system* "./configure"
-                                       "--disable-codegen-tests" 
+                                       "--disable-codegen-tests"
                                         ;(string-append "--local-rust-root=" rust-stage0)
                                        (string-append "--prefix=" out)
-                                       (string-append "--llvm-root=" llvm)))))
+                                       (string-append "--llvm-root=" llvm)
+                                       (string-append "--jemalloc-root=" jemalloc "/lib")))))
                          %standard-phases)
            (add-after 'configure 'use-static-stage0
              (lambda _
@@ -191,7 +206,8 @@
          ("valgrind" ,valgrind)
          ("libffi" ,libffi)
          ("perl" ,perl)
-         ("llvm" ,llvm)))
+         ("llvm" ,llvm)
+         ("jemalloc" ,jemalloc)))
       (native-inputs
        `(
          ("rust-bootstrap" ,rust-bootstrap)
