@@ -1,0 +1,18 @@
+--- ../../nix-build-rust-1.8.0.drv-11/rust-1.8.0/configure	1970-01-01 01:00:00.000000000 +0100
++++ ./configure	2016-04-30 22:48:35.887392561 +0200
+@@ -536,10 +536,14 @@
+             BIN_TO_PROBE="/usr/bin/env"
+         else
+             warn "Cannot check if the userland is i686 or x86_64"
++            warn "Assuming 64 bit userland on 64 bit linux system"
++            CFG_CPUTYPE=x86_64
++            SKIP_PROBE_CHECK=1
++
+         fi
+     fi
+     file -L "$BIN_TO_PROBE" | grep -q "x86[_-]64"
+-    if [ $? != 0 ]; then
++    if [ $? != 0 ] && [ $SKIP_PROBE_CHECK != 1 ]; then
+         msg "i686 userland on x86_64 Linux kernel"
+         CFG_CPUTYPE=i686
+     fi
