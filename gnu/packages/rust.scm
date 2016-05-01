@@ -17,6 +17,7 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (gnu packages rust)
+  #:use-module (ice-9 regex)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
   #:use-module (guix download)
@@ -24,10 +25,12 @@
   #:use-module (guix utils)
   #:use-module (guix build-system gnu)
   #:use-module (guix build-system trivial)
-  ;; #:use-module (gnu packages gcc)
+  #:use-module (gnu packages gcc)
   #:use-module (gnu packages)
   #:use-module (gnu packages base)
+  #:use-module (gnu packages bootstrap)
   #:use-module (gnu packages compression)
+  #:use-module (gnu packages elf)
   #:use-module (gnu packages perl)
   #:use-module (gnu packages libffi)
   #:use-module (gnu packages valgrind)
@@ -36,6 +39,11 @@
   #:use-module (gnu packages python)
   #:use-module (gnu packages llvm)
   #:use-module (gnu packages jemalloc))
+
+;; For a true bootstrap:
+;; https://github.com/rust-lang/rust/tree/ef75860a0a72f79f97216f8aaa5b388d98da6480/src/boot
+;; (But that would take about 319 iterative bootstrapped compiler builds)
+;; It could eventually work once the rust team has a more structured approach for bootstrapping
 
 
 ;; XXX: 
@@ -57,165 +65,154 @@
 
 ;; PAtch rust-disable-codegen-tests.patch
 
-;; Trivial build system demo
+(define (archive-name version platform checksum)
+  (string-append "rust-stage0-" version "-" platform "-" checksum ".tar.bz2"))
 
-;; (define* (wrap-python3 python
-;;                        #:optional
-;;                        (name (string-append (package-name python) "-wrapper")))
-;;   (package (inherit python)
-;;     (name name)
-;;     (source #f)
-;;     (build-system trivial-build-system)
-;;     (outputs '("out"))
-;;     (propagated-inputs `(("python" ,python)))
-;;     (arguments
-;;      `(#:modules ((guix build utils))
-;;        #:builder
-;;          (begin
-;;            (use-modules (guix build utils))
-;;            (let ((bin (string-append (assoc-ref %outputs "out") "/bin"))
-;;                  (python (string-append (assoc-ref %build-inputs "python") "/bin/")))
-;;                 (mkdir-p bin)
-;;                 (for-each
-;;                   (lambda (old new)
-;;                     (symlink (string-append python old)
-;;                              (string-append bin "/" new)))
-;;                   `("python3" ,"pydoc3" ,"idle3")
-;;                   `("python"  ,"pydoc"  ,"idle"))))))
-;;     (synopsis "Wrapper for the Python 3 commands")
-;;     (description
-;;      "This package provides wrappers for the commands of Python@tie{}3.x such
-;; that they can be invoked under their usual name---e.g., @command{python}
-;; instead of @command{python3}.")))
+(define rust-stage0-bootstrap-x86_64-archive
+  (archive-name "2016-02-17-4d3eebf" "linux-x86_64" "d29b7607d13d64078b6324aec82926fb493f59ba"))
 
+(define rust-stage0-bootstrap-x86_64
+  (origin
+    (method url-fetch)
+    (uri
+     (string-append "https://static.rust-lang.org/" rust-stage0-bootstrap-x86_64-archive))
+    (sha256 
+     (base32
+      "0gk87rknijyirlhw3h34bjxzq98j0v0icp3l8flrxn5pgil8pswd"))))
 
+(define rust-stage0-bootstrap-i386-archive
+  (archive-name "2016-02-17-4d3eebf" "linux-i386" "5f194aa7628c0703f0fd48adc4ec7f3cc64b98c7"))
 
-;; (define-public rust-stage0
-;;   ;; XXX: Untrusted binary, woohoo
-;;   (package
-;;     ;;(name "rustc")
-;;     (name "rust-stage0")
-;;     ;; XXX: Use a 'stable' stage0 compiler, once Rust has a working workflow
-;;     (version "2016-02-17-4d3eebf-linux-i386-5f194aa7628c0703f0fd48adc4ec7f3cc64b98c7")
-;;     (source (origin
-;;               (method url-fetch)
-;;               (uri (string-append
-;;                     "http://static.rust-lang.org/stage0-snapshots/" name
-;;                     "-" version ".tar.bz2"))
-;;               (file-name (string-append name "-" version ".tar.bz2"))
-;;               (sha256
-;;                (base32
-;;                 "16fd2hmli86g1q3fyicdhh2l4aqryzxcij7sk1pljig8dr2m8hg5"))))
-;;     (build-system trivial-build-system)
-;;     (arguments
-;;      `(#:modules ((guix build utils))
-;;                  #:builder
-;;                  (begin
-;;                    (use-modules (guix build utils))
-;;                    (let ((tar  (assoc-ref %build-inputs "tar"))
-;;                          (bzip (assoc-ref %build-inputs "bzip2"))
-;;                          (out  (assoc-ref %outputs "out")))
-;;                      (setenv "PATH" (string-append tar "/bin:" bzip "/bin"))
-;;                      (system* "tar" "xvf" (assoc-ref %build-inputs "source"))
-;;                      (chdir ,name)
-;;                      (copy-recursively "bin" (string-append out "/bin"))))))
-;;     (native-inputs
-;;      `(("tar" ,tar)
-;;        ("bzip2" ,bzip2)))
-;;     (home-page "https://www.rust-lang.org/")
-;;     (synopsis
-;;      "Rustc stage0 bootstrap")
-;;     (description
-;;      "LOREM IPSUM BLA")
-;;     (license license:gpl3+)))
+(define rust-stage0-bootstrap-i386
+  (origin
+    (method url-fetch)
+    (uri
+     (string-append "https://static.rust-lang.org/" rust-stage0-bootstrap-i386-archive))
+    (sha256
+     (base32
+      "16fd2hmli86g1q3fyicdhh2l4aqryzxcij7sk1pljig8dr2m8hg5"))))
 
-;; ./configure --local-rust-root=rustc --enable-rust-root
-;;(define-public rustc
-                                        ; rust-stage0-2016-02-17-4d3eebf-linux-x86_64-d29b7607d13d64078b6324aec82926fb493f59ba.tar.bz2jj
+(define-public rust-stage0
+  (package
+    (name "rust-stage0")
+    (version "2016-02-17-4d3eebf")
+    (build-system trivial-build-system)
+    (arguments
+     `(#:modules ((guix build utils))
+       #:builder
+       (let ((out (assoc-ref %outputs "out"))
+             (tar (string-append (assoc-ref %build-inputs "tar") "/bin/tar"))
+             (bzip2 (string-append (assoc-ref %build-inputs "bzip2") "/bin/bzip2"))
+             (patchelf (string-append (assoc-ref %build-inputs "patchelf") "/bin/patchelf"))
+             (tarball (assoc-ref %build-inputs "rust-bootstrap"))
+             (ld-so (string-append (assoc-ref %build-inputs "libc")
+                                   ,(glibc-dynamic-linker)))
+             (gcc:lib (assoc-ref %build-inputs "gcc:lib")))
+         (use-modules (guix build utils))
+         (mkdir out)
+         (copy-file tarball "bootstrap.tar.bz2")
+         (let ((builddir (getcwd)))
+           (with-directory-excursion out
+             (and (zero? (system* bzip2 "-d"
+                                  (string-append builddir "/bootstrap.tar.bz2")))
+                  (zero? (system* tar "xvf"
+                                  (string-append builddir "/bootstrap.tar")))
+                  (zero? (system* patchelf "--set-interpreter" ld-so "rust-stage0/bin/rustc"))
+                  (zero? (system* patchelf "--set-rpath" (string-append gcc:lib "/lib") "rust-stage0/bin/rustc")))
+              (copy-recursively "rust-stage0" "." )
+              (delete-file-recursively "rust-stage0"))))))
+    (inputs
+     `(("tar" ,tar)
+       ("bzip2" ,bzip2)
+       ("libc" ,glibc)
+       ("gcc:lib" ,gcc "lib")
+       ("rust-bootstrap"
+        ,(if (string-match "x86_64" (or (%current-target-system) (%current-system)))
+             rust-stage0-bootstrap-x86_64
+             rust-stage0-bootstrap-i386))
+       ("patchelf" ,patchelf))
+     )
+    (source #f)
+    (synopsis "todo")
+    (description "todo")
+    (license license:gpl3+)
+    (home-page "none")
+    ));; XXX: rewrite/fix. Maybe inherit?
+
 (define-public rust
-  (let* ((bootstrap-name "rust-stage0")
-         (bootstrap-version "2016-02-17-4d3eebf-linux-x86_64-d29b7607d13d64078b6324aec82926fb493f59ba")
-         (rust-bootstrap (origin
-                          (method url-fetch)
-                          (uri (string-append
-                                "http://static.rust-lang.org/stage0-snapshots/" bootstrap-name "-"
-                                bootstrap-version ".tar.bz2"))
-                          (sha256
-                           (base32
-                            "0gk87rknijyirlhw3h34bjxzq98j0v0icp3l8flrxn5pgil8pswd")))))
-    ;
-    (package
-      (name "rust")
-      (version "1.8.0")
-      (source (origin
-                (method url-fetch)
-                (uri "https://static.rust-lang.org/dist/rustc-1.8.0-src.tar.gz")
+  (package
+    (name "rust")
+    (version "1.8.0")
+    (source (origin
+              (method url-fetch)
+              (uri "https://static.rust-lang.org/dist/rustc-1.8.0-src.tar.gz")
+              (file-name (string-append name "-" version ".tar.gz"))
+              (sha256
+               (base32
+                "0jblby81qlbz4csdldsv7hqrcbfwsaa79q265bgb8kcdgqa6ci5g"))
+              (patches
+               (search-patches "rust-disable-codegen-tests.patch"
+                               "rustc-env-workaround.patch"))))
+    (build-system gnu-build-system)
+    ;; XXX: rust should probably run on everything
+    (supported-systems '("i686-linux" "x86_64-linux")) 
+    (arguments
+     `(#:make-flags (list "CC=gcc") ;; XXX: stil not enough
 
-                                        ;(string-append
-                      ;;"https://static.rust-lang.org/dist/" name "-"
-                      ;;version "-src.tar.gz"))
-                      ;"https://github.com/rust-lang/" name "/archive/"
-                      ;version ".tar.gz"))
-                (file-name (string-append name "-" version ".tar.gz"))
-                (sha256
-                 (base32
-                  ;;"0jblby81qlbz4csdldsv7hqrcbfwsaa79q265bgb8kcdgqa6ci5g"))))
-                  ;"1p45ik0mr818ywy5gpxi68h6md9ndmcpw7g4rx7l6frvfn5xd4sy"
-                  "0jblby81qlbz4csdldsv7hqrcbfwsaa79q265bgb8kcdgqa6ci5g"
-                  ))
-                (patches
-                 (search-patches "rust-disable-codegen-tests.patch"
-                                 "rustc-env-workaround.patch"))))
-      (build-system gnu-build-system)
-      (arguments
-       `(#:phases
-         ;; XXX: commit a3fdde7
-         ;;#:configure-flags "--disable-codegen-tests"
-         (modify-phases (alist-replace
-                         'configure
-                         (lambda* (#:key outputs #:allow-other-keys)
-                           ;; This old `configure' script doesn't support
-                           ;; variables passed as arguments.
-                           (let ((out (assoc-ref outputs "out"))
-                                 (llvm (assoc-ref %build-inputs "llvm"))
-                                 (jemalloc (assoc-ref %build-inputs "jemalloc")))
-                             (setenv "CONFIG_SHELL" (which "bash"))
-                             (zero?
-                              (system* "./configure"
-                                       "--disable-codegen-tests"
-                                        ;(string-append "--local-rust-root=" rust-stage0)
-                                       (string-append "--prefix=" out)
-                                       (string-append "--llvm-root=" llvm)
-                                       (string-append "--jemalloc-root=" jemalloc "/lib")))))
-                         %standard-phases)
-           (add-after 'configure 'use-static-stage0
-             (lambda _
-               (system* "cp" (assoc-ref %build-inputs "rust-bootstrap")
-                        (string-append  "dl/"
-                                        ,bootstrap-name "-" ,bootstrap-version ".tar.bz2"))
-               )))))
-      ;(system* "cp" (assoc-ref %build-inputs "rust-bootstrap") "dl")
-      ;; #:configure-flags
-      ;; (list
-      ;;  (string-append "--llvm-root="
-      ;;                 (assoc-ref %build-inputs "llvm")))))
-      (inputs
-       `(("python-2" ,python-2)
-         ("curl" ,curl)
-         ("git" ,git)
-         ("valgrind" ,valgrind)
-         ("libffi" ,libffi)
-         ("perl" ,perl)
-         ("llvm" ,llvm)
-         ("jemalloc" ,jemalloc)))
-      (native-inputs
-       `(
-         ("rust-bootstrap" ,rust-bootstrap)
-         ))
-      (home-page "https://www.rust-lang.org/")
-      (synopsis
-       "The Rust Programming Language")
-      (description
-       "LOREM IPSUM BLA")
-      (license license:gpl3+)))
-  )
+       #:phases
+       ;; XXX: commit a3fdde7
+       ;;#:configure-flags "--disable-codegen-tests"
+
+       (alist-cons-before
+        'configure 'patch-sources
+        (lambda _
+          ;; XXX Cannot use snippet because zip files are not supported
+          (substitute* "mk/cfg/x86_64-unknown-linux-gnu.mk" ; <- check this
+            (("^CC_x86_64-unknown-linux-gnu=.*(CC)$") "CC_x86_64-unknown-linux-gnu=gcc"))
+          (substitute* "mk/cfg/i686-unknown-linux-gnu.mk" ; <- check this
+            (("^CC_i686-unknown-linux-gnu=.*(CC)$") "CC_i686-unknown-linux-gnu=gcc"))
+          (substitute* "src/librustc_back/target/mod.rs" ; <- check this
+            (("^.*linker: option_env!(\"CFG_DEFAULT_LINKER\").unwrap_or(\"cc\").to_string(),$")
+             "            linker: option_env!(\"CFG_DEFAULT_LINKER\").unwrap_or(\"gcc\").to_string(),")))
+
+        (modify-phases (alist-replace
+                        'configure
+                        (lambda* (#:key outputs #:allow-other-keys)
+                          ;; This old `configure' script doesn't support
+                          ;; variables passed as arguments.
+                          (let ((out (assoc-ref outputs "out"))
+                                (llvm (assoc-ref %build-inputs "llvm"))
+                                (jemalloc (assoc-ref %build-inputs "jemalloc"))
+                                (rust-stage0 (assoc-ref %build-inputs "rust-stage0")))
+                            (setenv "CONFIG_SHELL" (which "bash"))
+                            (setenv "CC" "gcc") ;; XXX; still not enough
+                                        ;(setenv "CC" (string-append (assoc-ref %build-inputs "gcc") "/bin/gcc"))
+                            (zero?
+                             (system* "./configure"
+                                      "--disable-codegen-tests"
+                                      "--enable-local-rust"
+                                      "--default-linker=gcc" ;; XXX; why oh why rust do you not heed this argument XD
+                                      (string-append "--prefix=" out)
+                                      (string-append "--llvm-root=" llvm)
+                                      (string-append "--jemalloc-root=" jemalloc "/lib")
+                                      (string-append "--local-rust-root=" rust-stage0)))))
+                        %standard-phases)))))
+    (inputs
+     `(("python-2" ,python-2)
+       ("curl" ,curl)
+       ("git" ,git)
+       ("valgrind" ,valgrind)
+       ("libffi" ,libffi)
+       ("perl" ,perl)
+       ("llvm" ,llvm)
+       ("jemalloc" ,jemalloc)))
+    (native-inputs
+     `(("patchelf" ,patchelf)
+       ("which" ,which)
+       ("rust-stage0" ,rust-stage0)))
+    (home-page "https://www.rust-lang.org/")
+    (synopsis
+     "The Rust Programming Language")
+    (description
+     "LOREM IPSUM BLA")
+    (license license:gpl3+)))
