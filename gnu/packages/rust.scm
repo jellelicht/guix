@@ -31,6 +31,7 @@
   #:use-module (gnu packages bootstrap)
   #:use-module (gnu packages compression)
   #:use-module (gnu packages elf)
+  #:use-module (gnu packages linux)
   #:use-module (gnu packages perl)
   #:use-module (gnu packages libffi)
   #:use-module (gnu packages valgrind)
@@ -75,7 +76,7 @@
   (origin
     (method url-fetch)
     (uri
-     (string-append "https://static.rust-lang.org/" rust-stage0-bootstrap-x86_64-archive))
+     (string-append "https://static.rust-lang.org/stage0-snapshots/" rust-stage0-bootstrap-x86_64-archive))
     (sha256 
      (base32
       "0gk87rknijyirlhw3h34bjxzq98j0v0icp3l8flrxn5pgil8pswd"))))
@@ -87,7 +88,7 @@
   (origin
     (method url-fetch)
     (uri
-     (string-append "https://static.rust-lang.org/" rust-stage0-bootstrap-i386-archive))
+     (string-append "https://static.rust-lang.org/stage0-snapshots/" rust-stage0-bootstrap-i386-archive))
     (sha256
      (base32
       "16fd2hmli86g1q3fyicdhh2l4aqryzxcij7sk1pljig8dr2m8hg5"))))
@@ -107,24 +108,31 @@
              (tarball (assoc-ref %build-inputs "rust-bootstrap"))
              (ld-so (string-append (assoc-ref %build-inputs "libc")
                                    ,(glibc-dynamic-linker)))
+             (libc-libs (string-append (assoc-ref %build-inputs "libc") "/lib/"))
              (gcc:lib (assoc-ref %build-inputs "gcc:lib")))
          (use-modules (guix build utils))
          (mkdir out)
          (copy-file tarball "bootstrap.tar.bz2")
+         (display "yolo")
+
+         ;;--interpreter "${stdenv.glibc.out}/lib/${stdenv.cc.dynamicLinker}" \
+         ;;--set-rpath "${stdenv.cc.cc.lib}/lib/:${stdenv.cc.cc.lib}/lib64/" 
          (let ((builddir (getcwd)))
            (with-directory-excursion out
              (and (zero? (system* bzip2 "-d"
                                   (string-append builddir "/bootstrap.tar.bz2")))
                   (zero? (system* tar "xvf"
                                   (string-append builddir "/bootstrap.tar")))
+                  ;(display (string-append "--set-interpreter" ld-so "rust-stage0/bin/rustc"))
+                  ;(display (string-append "--set-rpath" (string-append gcc:lib "/lib/" ":" gcc:lib "/lib64/") "rust-stage0/bin/rustc"))
                   (zero? (system* patchelf "--set-interpreter" ld-so "rust-stage0/bin/rustc"))
-                  (zero? (system* patchelf "--set-rpath" (string-append gcc:lib "/lib") "rust-stage0/bin/rustc")))
+                  (zero? (system* patchelf "--set-rpath" (string-append gcc:lib "/lib/" ":" libc-libs) "rust-stage0/bin/rustc")))
               (copy-recursively "rust-stage0" "." )
               (delete-file-recursively "rust-stage0"))))))
     (inputs
      `(("tar" ,tar)
        ("bzip2" ,bzip2)
-       ("libc" ,glibc)
+       ;("libc" ,glibc)
        ("gcc:lib" ,gcc "lib")
        ("rust-bootstrap"
         ,(if (string-match "x86_64" (or (%current-target-system) (%current-system)))
@@ -138,6 +146,8 @@
     (license license:gpl3+)
     (home-page "none")
     ));; XXX: rewrite/fix. Maybe inherit?
+
+;; ;p ++ [ "--default-linker=${stdenv.cc}/bin/cc" "--default-ar=${binutils.out}/bin/ar
 
 (define-public rust
   (package
@@ -155,17 +165,19 @@
                                "rustc-env-workaround.patch"))))
     (build-system gnu-build-system)
     ;; XXX: rust should probably run on everything
-    (supported-systems '("i686-linux" "x86_64-linux")) 
+    (supported-systems '("i686-linux" "x86_64-linux"))
     (arguments
-     `(#:make-flags (list "CC=gcc") ;; XXX: stil not enough
-
+     `(;#:make-flags (list "CC=gcc") ;; XXX: stil not enough
+       #:parallel-build? #f
        #:phases
        ;; XXX: commit a3fdde7
        ;;#:configure-flags "--disable-codegen-tests"
-
+       ;; (setenv "PATH" (string-append (getenv "PATH") ":" out "/bin")))) <- awesome path setting
+       ;; #!$SHELL
+       ;; exec gcc "$@"
        (alist-cons-before
         'configure 'patch-sources
-        (lambda _
+        (lambda* (#:key outputs #:allow-other-keys)
           ;; XXX Cannot use snippet because zip files are not supported
           (substitute* "mk/cfg/x86_64-unknown-linux-gnu.mk" ; <- check this
             (("^CC_x86_64-unknown-linux-gnu=.*(CC)$") "CC_x86_64-unknown-linux-gnu=gcc"))
@@ -173,25 +185,41 @@
             (("^CC_i686-unknown-linux-gnu=.*(CC)$") "CC_i686-unknown-linux-gnu=gcc"))
           (substitute* "src/librustc_back/target/mod.rs" ; <- check this
             (("^.*linker: option_env!(\"CFG_DEFAULT_LINKER\").unwrap_or(\"cc\").to_string(),$")
-             "            linker: option_env!(\"CFG_DEFAULT_LINKER\").unwrap_or(\"gcc\").to_string(),")))
-
+             "            linker: option_env!(\"CFG_DEFAULT_LINKER\").unwrap_or(\"gcc\").to_string(),"))
+          (let ((wrapper-dir (string-append (getcwd) "/" "cc-wrapper")))
+            (mkdir wrapper-dir)
+            (with-output-to-file (string-append wrapper-dir "/cc")
+              (lambda ()
+                (display
+                 (string-append
+                  "#!" (which "bash") "\n"
+                  "exec gcc \"$@\""))))
+            (chmod (string-append wrapper-dir "/cc") #o755)
+            (setenv "PATH"
+                    (string-append (getenv "PATH")
+                                   ":" wrapper-dir))))
         (modify-phases (alist-replace
                         'configure
-                        (lambda* (#:key outputs #:allow-other-keys)
+                        (lambda* (#:key inputs outputs #:allow-other-keys)
                           ;; This old `configure' script doesn't support
                           ;; variables passed as arguments.
                           (let ((out (assoc-ref outputs "out"))
-                                (llvm (assoc-ref %build-inputs "llvm"))
-                                (jemalloc (assoc-ref %build-inputs "jemalloc"))
-                                (rust-stage0 (assoc-ref %build-inputs "rust-stage0")))
+                                (llvm (assoc-ref inputs "llvm"))
+                                (ar (string-append (assoc-ref inputs "binutils") "/bin/ar"))
+                                (jemalloc (assoc-ref inputs "jemalloc"))
+                                (mygcc (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+                                (rust-stage0 (assoc-ref inputs "rust-stage0")))
                             (setenv "CONFIG_SHELL" (which "bash"))
-                            (setenv "CC" "gcc") ;; XXX; still not enough
+                            ;;(setenv "RUST_LOG" "info")
+                            (setenv "CC" mygcc)
                                         ;(setenv "CC" (string-append (assoc-ref %build-inputs "gcc") "/bin/gcc"))
                             (zero?
                              (system* "./configure"
                                       "--disable-codegen-tests"
                                       "--enable-local-rust"
-                                      "--default-linker=gcc" ;; XXX; why oh why rust do you not heed this argument XD
+                                      "--enable-rpath"
+                                      (string-append "--default-ar=" ar)
+                                      (string-append "--default-linker=" mygcc) ;; XXX; why oh why rust do you not heed this argument XD
                                       (string-append "--prefix=" out)
                                       (string-append "--llvm-root=" llvm)
                                       (string-append "--jemalloc-root=" jemalloc "/lib")
@@ -208,6 +236,9 @@
        ("jemalloc" ,jemalloc)))
     (native-inputs
      `(("patchelf" ,patchelf)
+       ("gcc" ,gcc)
+       ("procps" ,procps) ; for tests, we need ps
+       ;("ar" ,ar)
        ("which" ,which)
        ("rust-stage0" ,rust-stage0)))
     (home-page "https://www.rust-lang.org/")
