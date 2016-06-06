@@ -65,6 +65,7 @@ MODULES =					\
   guix/build-system/glib-or-gtk.scm		\
   guix/build-system/gnu.scm			\
   guix/build-system/haskell.scm			\
+  guix/build-system/node.scm			\
   guix/build-system/perl.scm			\
   guix/build-system/python.scm			\
   guix/build-system/waf.scm			\
@@ -88,6 +89,7 @@ MODULES =					\
   guix/build/glib-or-gtk-build-system.scm	\
   guix/build/gnu-build-system.scm		\
   guix/build/gnu-dist.scm			\
+  guix/build/node-build-system.scm		\
   guix/build/perl-build-system.scm		\
   guix/build/python-build-system.scm		\
   guix/build/r-build-system.scm			\
