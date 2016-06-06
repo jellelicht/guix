@@ -153,6 +153,8 @@ if HAVE_GUILE_JSON
 MODULES +=					\
   guix/import/github.scm   			\
   guix/import/json.scm				\
+  guix/import/npm.scm				\
+  guix/scripts/import/npm.scm			\
   guix/import/pypi.scm				\
   guix/scripts/import/pypi.scm			\
   guix/import/cpan.scm				\
