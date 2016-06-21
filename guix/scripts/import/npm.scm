@@ -55,6 +55,9 @@
          (option '(#\V "version") #f #f
                  (lambda args
                    (show-version-and-exit "guix import npm")))
+         (option '(#\r "recursive") #f #f
+                 (lambda (opt name arg result)
+                   (alist-cons 'recursive #t result)))
          %standard-import-options))
 
 ;;;
@@ -77,11 +80,21 @@
                            (reverse opts))))
     (match args
       ((package-name)
-       (let ((sexp (npm->guix-package package-name)))
-         (unless sexp
-           (leave (_ "failed to download meta-data for package '~a'~%")
-                  package-name))
-         sexp))
+       (if (assoc-ref opts 'recursive)
+           ;; Recursive import
+           (map (match-lambda
+                  ((and (label . (('package ('name name) . rest)))
+                        (label . (pkg)))
+                   `(define-public ,(string->symbol name)
+                      ,pkg))
+                  (_ #f))
+                (recursive-import package-name))
+           ;; Single import
+           (let ((sexp (npm->guix-package package-name)))
+             (unless sexp
+               (leave (_ "failed to download meta-data for package '~a'~%")
+                      package-name))
+             sexp)))
       (()
        (leave (_ "too few arguments~%")))
       ((many ...)

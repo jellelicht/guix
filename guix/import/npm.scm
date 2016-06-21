@@ -28,45 +28,157 @@
   #:use-module ((guix download) #:prefix download:)
   #:use-module (guix serialization)
   #:use-module (guix import json)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9 gnu)
+  #:use-module (srfi srfi-9)
+  #:use-module (ice-9 regex)
+  #:use-module (ice-9 rdelim)
+  #:use-module (ice-9 control)
+  #:use-module (rnrs bytevectors)
+  #:use-module (ice-9 binary-ports)
   #:use-module (rnrs io ports)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 regex)
+  #:use-module (ice-9 receive)
   #:use-module (guix import utils)
-  #:export (npm->guix-package))
+  #:use-module (guix packages)
+  #:use-module (gnu packages)
+  #:export (npm->guix-package
+            recursive-import
+            ;;%npm-updater
+            ))
 
-(define (normalise-git-url url)
-  "Return a simple canonical url for the git repository at URL."
-  ;;XXX: Weird npm urls need to be normalised
-  ;;Not very robust right now
-  ;; git://github.com/user/project.git
-  ;; git+ssh://user@hostname:project.git
-  ;; git+ssh://user@hostname/project.git
-  ;; git+http://user@hostname/project/blah.git
-  ;; git+https://user@hostname/project/blah.git
-  ;; TODO: should support the user/repo shorthand for github
-  (let ((uri (string->uri url)))
-    (if (uri? uri)
-        (case (uri-scheme uri)
-          ((git+ssh)
-           (if (equal? (uri-host uri) "github.com")
-               (normalise-git-url (uri->string (set-fields uri
-                                                           ((uri-scheme) 'git))))
-               url))
-          ((git+https git+http)
-           (substring url 4)) ; ignore git+ part of uri scheme
-          ((https)
-           (uri->string (set-fields uri
-                                    ((uri-userinfo) #f)))) ;dont use userinfo when using the https interface
-          ((git)
-           (if (equal? (uri-host uri) "github.com")
-               ; Try the https github interface first, because it works with both git-fetch and url-fetch
-               (normalise-git-url (uri->string (set-fields uri
-                                                           ((uri-scheme) 'https))))
-               uri))
-          (else
-           url))
-        url)))
+(define scheme-pat
+  (make-regexp "[a-zA-Z][a-zA-Z0-9+.-]*"))
+(define host-pat
+  "[a-zA-Z0-9.-]+")
+(define authority-pat
+  (make-regexp "[^/?#]*"))
+(define path-pat
+  (make-regexp "[^?#]*"))
+(define user-project-pat
+  "([a-zA-Z][a-zA-Z0-9+.0]*)/([a-zA-Z][a-zA-Z0-9+.0]*)")
+
+(define gh-shorthand-regexp
+  (make-regexp (format #f "^~a$" user-project-pat)))
+(define alternative-gh-shorthand-regexp
+  (make-regexp (format #f "^github:~a$" user-project-pat)))
+(define bitbucket-shorthand-regexp
+  (make-regexp (format #f "^bitbucket:~a$" user-project-pat)))
+(define gitlab-shorthand-regexp
+  (make-regexp (format #f "^gitlab:~a$" user-project-pat)))
+(define pseudo-url-regexp
+  (make-regexp (format #f "^(~a)@(~a):(~a)/(~a).git$"
+                       user-project-pat
+                       host-pat
+                       user-project-pat
+                       user-project-pat)))
+
+(define (pseudo-to-real-url pseudo-url-match)
+  (let* ((m         pseudo-url-match)
+         (protocol (match:substring m 1))
+         (hostname (match:substring m 2))
+         (user     (match:substring m 3))
+         (project  (match:substring m 4)))
+    (format #f "~a://~a/~a/~a.git"
+            protocol
+            hostname
+            user
+            project)))
+
+(define (make-gh-url user project)
+  (format #f "https://github.com/~a/~a.git" user project))
+(define (make-bb-url user project)
+  (format #f "https://bitbucket.org/~a/~a.git" user project))
+(define (make-gl-url user project)
+  (format #f "https://gitlab.com/~a/~a.git" user project))
+
+(define (normalise-url url)
+  (cond ((or (regexp-exec gh-shorthand-regexp url)
+         (regexp-exec alternative-gh-shorthand-regexp url))
+         ;; user/project or github:user/project
+         => (lambda (match)
+              (let ((user (match:substring match 1))
+                    (project (match:substring match 2)))
+                (make-gh-url user project))))
+        ((regexp-exec bitbucket-shorthand-regexp url)
+         ;; bitbucket:user/project
+         =>
+        (lambda (match)
+          (let ((user (match:substring match 1))
+                (project (match:substring match 2)))
+            (make-bb-url user project))))
+        ((regexp-exec gitlab-shorthand-regexp url)
+         ;; gitlab:user/project
+         =>
+         (lambda (match)
+           (let ((user (match:substring match 1))
+                 (project (match:substring match 2)))
+             (make-gl-url user project))))
+        ((not (string-suffix? ".git" url))  ;XXX: forgetful npm people
+         (normalise-url (string-append url ".git")))
+        ((string->uri url)
+         =>
+         (lambda (uri)
+           ;; XXX: Use actual schemes supported by git
+           (case (uri-scheme uri)
+             ((git+ssh)
+              (uri->string (set-fields uri
+                                        ((uri-scheme) 'git))))
+             ((git+http)
+              (uri->string (set-fields uri
+                                       ((uri-scheme) 'http))))
+             ((git+https)
+              (uri->string (set-fields uri
+                                       ((uri-scheme) 'https))))
+             (else
+              url))))
+        (else
+         url)))
+
+;; (define (normalise-git-url url)
+;;   "Return a simple canonical url for the git repository at URL."
+;;   ;;XXX: Weird npm urls need to be normalised
+;;   ;;Not very robust right now
+;;   ;; "repository": "npm/npm"
+;;   ;; "repository": "gist:11081aaa281"
+;;   ;; "repository": "bitbucket:example/repo"
+;;   ;;"repository": "gitlab:another/repo"
+;;   ;; user/project
+;;   ;; git@github.com:user/project.git
+;;   ;; git://github.com/user/project.git
+;;   ;; git+ssh://user@hostname:project.git
+;;   ;; git+ssh://user@hostname/project.githttps://github.com/gulpjs/gulp-util.git
+;;   ;; git+http://user@hostname/project/blah.git
+;;   ;; git+https://user@hostname/project/blah.git
+;;   ;; TODO: should support the user/repo shorthand for github
+;;   (let ((uri (string->uri url)))
+;;     (if (uri? uri)
+;;         (case (uri-scheme uri)
+;;           ((git+ssh)
+;;            (if (equal? (uri-host uri) "github.com")
+;;                (normalise-git-url (uri->string (set-fields uri
+;;                                                            ((uri-scheme) 'git))))
+;;                url))
+;;           ((git+https git+http)
+;;            (substring url 4)) ; ignore git+ part of uri scheme
+;;           ((https)
+;;            (if (and (equal? (uri-host uri) "github.com") (not (string-suffix? ".git" (uri-path uri))))
+;;                (uri->string (set-fields uri
+;;                                         ((uri-userinfo) #f)
+;;                                         ((uri-path) (string-append (uri-path uri) ".git"))))
+;;                (uri->string (set-fields uri
+;;                                         ((uri-userinfo) #f))))) ;dont use userinfo when using the https interface
+;;           ((git)
+;;            (if (equal? (uri-host uri) "github.com")
+;;                ; Try the https github interface first, because it works with both git-fetch and url-fetch
+;;                (normalise-git-url (uri->string (set-fields uri
+;;                                                            ((uri-scheme) 'https))))
+;;                uri))
+;;           (else
+;;            url))
+;;         url)))
 
 ;; Taken and tweaked from (guix import github)
 (define %github-token
@@ -86,16 +198,35 @@ failure."
              (and (url-fetch url temp)
                   (call-with-input-file temp json->scm)))))))))
 
-(define (fuzzy-tag-match github-repo version)
+(define (heuristic-tags version)
+  (list version
+        (string-append "v" version)))
+
+(define (generic-fuzzy-tag-match repo-url version)
+  "Return a likely match for the git tag VERSION for the repository at
+REPO-URL"
+  (let* ((fuzzy-tags (heuristic-tags version))
+         (repo-tags  (git-fetch-tags repo-url))
+         (proper-release (filter
+                          (lambda (tags)
+                            (member tags fuzzy-tags))
+                          repo-tags)))
+    (match proper-release
+      (()
+       #f)
+      ((release . rest)
+       ;;XXX: Just pick the first release
+       release))))
+
+(define (gh-fuzzy-tag-match github-repo version)
   "Return a likely match for the git tag VERSION for the repository at
 GITHUB-REPO"
-  (let* ((fuzzy-tags (list version
-                           (string-append "v" version)))
-         (token (%github-token))
-         (api-url (string-append
-                   "https://api.github.com/repos/"
-                   (github-user-slash-repository github-repo)
-                   "/tags"))
+  (let* ((fuzzy-tags (heuristic-tags version))
+         (token      (%github-token))
+         (api-url    (string-append
+                      "https://api.github.com/repos/"
+                      (github-user-slash-repository github-repo)
+                      "/tags"))
          (json (json-fetch*
                 (if token
                     (string-append api-url "?access_token=" token)
@@ -103,11 +234,11 @@ GITHUB-REPO"
     (if (eq? json #f)
         (if token
             (error "Error downloading release information through the GitHub
-API when using a GitHub token")
+API when using a GitHub token to download:" github-repo "@" version " via " api-url)
             (error "Error downloading release information through the GitHub
 API. This may be fixed by using an access token and setting the environment
 variable GUIX_GITHUB_TOKEN, for instance one procured from
-https://github.com/settings/tokens"))
+https://github.com/settings/tokens. E: " github-repo "@" version " via " api-url))
         (let ((proper-release
                (filter
                 (lambda (x)
@@ -121,6 +252,7 @@ https://github.com/settings/tokens"))
              ;;XXX: Just pick the first release
              (let ((tag (hash-ref release "name")))
                tag)))))))
+
 
 (define (github-user-slash-repository github-url)
   "Return a string e.g. arq5x/bedtools2 of the owner and the name of the
@@ -163,10 +295,14 @@ GITHUB-URL."
   "Return the latest source release for NPM-META."
   (assoc-ref* npm-meta "dist-tags" "latest"))
 
+(define (node-package? package)
+  "Return true if PACKAGE is a node package."
+  (string-prefix? "node-" (package-name package)))
+
 (define (source-uri npm-meta version)
   "Return the repository url for version VERSION of NPM-META"
   (let* ((v    (assoc-ref* npm-meta "versions" version)))
-    (normalise-git-url (assoc-ref* v "repository" "url"))))
+    (normalise-url (assoc-ref* v "repository" "url"))))
 
 (define (guix-hash-url path)
   "Return the hash of PATH in nix-base32 format. PATH can be either a file or
@@ -196,7 +332,7 @@ revision COMMIT. URL can be any url supported by the 'git clone' command.
 COMMIT can be identifier of a commit that works with the 'git checkout'
 command."
   ;;XXX: Assumes 'commit' is actually a tag
-  (let ((url (normalise-git-url url))
+  (let ((url (normalise-url url))
         (v (string-append "v" commit)))
     (git-fetch url v directory)))
 
@@ -208,7 +344,7 @@ a git checkout."
     (if (equal? (uri-host uri) "github.com")
         (call-with-temporary-output-file
          (lambda (temp port)
-           (let* ((gh-version (fuzzy-tag-match repo-url version))
+           (let* ((gh-version (gh-fuzzy-tag-match repo-url version))
                   (tb (github-release-url repo-url gh-version))
                   (result (url-fetch tb temp))
                   (hash (bytevector->nix-base32-string (port-sha256 port))))
@@ -221,15 +357,16 @@ a git checkout."
                   ,hash))))))
         (call-with-temporary-directory
          (lambda (temp-dir)
-           (and (node-git-fetch repo-url version temp-dir)
-                `(origin
-                   (method git-fetch)
-                   (uri (git-reference
-                         (url ,repo-url)
-                         (commit (string-append "v" version))))
-                   (sha256
-                    (base32
-                     ,(guix-hash-url temp-dir))))))))))
+           (let ((fuzzy-version (generic-fuzzy-tag-match repo-url version)))
+             (and (node-git-fetch repo-url fuzzy-version temp-dir)
+                  `(origin
+                     (method git-fetch)
+                     (uri (git-reference
+                           (url ,repo-url)
+                           (commit ,fuzzy-version)))
+                     (sha256
+                      (base32
+                       ,(guix-hash-url temp-dir)))))))))))
 
 (define (make-npm-sexp name version home-page description
                        dependencies dev-dependencies license source-url)
@@ -271,12 +408,19 @@ SOURCE-URL."
        (home-page ,home-page)
        (license ,(license->symbol license)))))
 
-(define (extract-dependencies dependencies)
+(define (extract-guix-dependencies dependencies)
   "Returns a list of dependencies according to the guix naming scheme, from
 the npm list of dependencies DEPENDENCIES."
   (if (not dependencies)
       '()
       (map (compose node-package-name car) dependencies)))
+
+(define (extract-npm-dependencies dependencies)
+  "Returns a list of dependencies according to the npm naming scheme, from the
+npm list of dependencies DEPENDENCIES."
+  (if (not dependencies)
+      '()
+      (map car dependencies)))
 
 
 (define (npm->guix-package package-name)
@@ -287,12 +431,46 @@ the npm list of dependencies DEPENDENCIES."
          (let* ((name (assoc-ref package "name"))
                 (version (latest-source-release package))
                 (curr (assoc-ref* package "versions" version))
-                (dependencies (extract-dependencies (assoc-ref curr "dependencies")))
-                (dev-dependencies (extract-dependencies (assoc-ref curr "dev-dependencies")))
+                (raw-dependencies (assoc-ref curr "dependencies"))
+                (npm-dependencies (extract-npm-dependencies raw-dependencies))
+                (dependencies (extract-guix-dependencies raw-dependencies))
+                (dev-dependencies (extract-guix-dependencies (assoc-ref curr "dev-dependencies")))
                 (description (assoc-ref package "description"))
                 (home-page (assoc-ref package "homepage"))
                 (license (spdx-string->license (assoc-ref package "license")))
                 (source-url (source-uri package version)))
-           (make-npm-sexp name version home-page description
-                          dependencies dev-dependencies license source-url)))))
+           (values 
+            (make-npm-sexp name version home-page description
+                           dependencies dev-dependencies license source-url)
+            npm-dependencies)))))
 
+(define* (recursive-import package-name)
+  (define (iter name imported)
+    ;; FIXME: this might fail, so catch errors
+    (receive (package dependencies)
+        (catch #t
+          (lambda () 
+            (npm->guix-package name))
+          (lambda (key . parameters)
+            (format (current-error-port)
+                    "Uncaught throw to '~a: ~a\n" key parameters)
+            (values #f #f)))
+      (if package
+          (let* ((new-entry    (cons name (list package)))
+                 (imported     (cons new-entry imported))
+                 (dependencies (filter (lambda (dependency)
+                                         (and (not (assoc dependency imported))
+                                              (null? (find-packages-by-name (node-package-name dependency)))))
+                                       dependencies)))
+            (fold iter imported dependencies))
+          (begin
+            (format #t "error: failed to import package ~a from archive npm.\n" name)
+            imported))))
+  (iter package-name '()))
+
+;(define %npm-updater
+  ;(upstream-updater
+   ;(name 'npm)
+   ;(description "Updater for npm packages")
+   ;(pred node-package?)
+   ;(latest latest-source-release)))
