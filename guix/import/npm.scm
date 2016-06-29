@@ -19,7 +19,7 @@
 
 (define-module (guix import npm)
   #:use-module (json)
-  #:use-module ((guix licenses) #:select (expat))
+  #:use-module (guix licenses)
   #:use-module (guix utils)
   #:use-module (web uri)
   #:use-module (guix build git)
@@ -32,6 +32,7 @@
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-26)
   #:use-module (ice-9 regex)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 control)
@@ -44,6 +45,7 @@
   #:use-module (guix import utils)
   #:use-module (guix packages)
   #:use-module (gnu packages)
+  #:use-module (guix build-system node)
   #:export (npm->guix-package
             recursive-import
             ;;%npm-updater
@@ -272,6 +274,8 @@ URL of the form 'https://github.com/arq5x/bedtools2.git'"
 (define (github-release-url github-url version)
   "Return the url for the tagged release VERSION on the github repo found at
 GITHUB-URL."
+  (when (not version)
+    (error "GitHub tarball not found" github-url version))
   (if (equal? (uri-host (string->uri github-url)) "github.com")
       (let ((ext     ".tar.gz")
             (version version)
@@ -323,7 +327,61 @@ package."
   "Convert STR, a SPDX formatted license identifier, to a license object.
    Return #f if STR does not match any known identifiers."
   (match str
+    ("AGPL-1.0" 'AGPL-1.0)
+    ("AGPL-3.0" 'AGPL-3.0)
+    ("Apache-1.1" 'asl1.1)
+    ("Apache-2.0" 'asl2.0)
+    ("BSL-1.0" 'boost1.0)
+    ("BSD-2-Clause-FreeBSD" 'bsd-2)
+    ("BSD-3-Clause" 'bsd-3)
+    ("BSD-4-Clause" 'bsd-4)
+    ("CC0-1.0" 'cc0)
+    ("CC-BY-SA-4.0" 'cc-by-sa4.0)
+    ("CC-BY-SA-3.0" 'cc-by-sa3.0)
+    ("CC-BY-3.0" 'cc-by3.0)
+    ("CC-BY-2.0" 'cc-by2.0)
+    ("CDDL-1.0" 'cddl1.0)
+    ("CECILL-C" 'cecill-c)
+    ("Artistic-2.0" 'artistic2.0)
+    ("ClArtistic" 'clarified-artistic)
+    ("CPL-1.0" 'cpl1.0)
+    ("EPL-1.0" 'epl1.0)
     ("MIT" 'expat)
+    ("FTL" 'freetype)
+    ("Giftware" 'giftware)
+    ("GPL-1.0" 'gpl1)
+    ("GPL-1.0+" 'gpl1+)
+    ("GPL-2.0" 'gpl2)
+    ("GPL-2.0+" 'gpl2+)
+    ("GPL-3.0" 'gpl3)
+    ("GPL-3.0+" 'gpl3+)
+    ("ISC" 'isc)
+    ("IJG" 'ijg)
+    ("Imlib2" 'imlib2)
+    ("IPA" 'ipa)
+    ("LGPL-2.0" 'lgpl2.0)
+    ("LGPL-2.0+" 'lgpl2.0+)
+    ("LGPL-2.1" 'lgpl2.1)
+    ("LGPL-2.1+" 'lgpl2.1+)
+    ("LGPL-3.0" 'lgpl3.0)
+    ("MPL-1.0" 'mpl1.0)
+    ("MPL-1.1" 'mpl1.1)
+    ("MPL-2.0" 'mpl2.0)
+    ("MS-PL" 'ms-pl)
+    ("NCSA" 'ncsa)
+    ("OpenSSL" 'openssl)
+    ("OLDAP-2.8" 'openldap2.8)
+    ("QPL-1.0" 'qpl)
+    ("Ruby" 'ruby)
+    ("SGI-B-2.0" 'sgifreeb2.0)
+    ("OFL-1.1" 'silofl1.1)
+    ("Sleepycat" 'sleepycat)
+    ("TCL" 'tcl/tk)
+    ("Vim" 'vim)
+    ("Unlicense" 'unlicense)
+    ("X11" 'x11)
+    ("ZPL-2.1" 'zpl2.1)
+    ("Zlib" 'zlib)
     (_ #f)))
 
 (define (node-git-fetch url commit directory)
@@ -379,8 +437,6 @@ SOURCE-URL."
        (version ,version)
        (source ,origin)
        (build-system node-build-system)
-       ,@`((arguments
-          (,'quasiquote (#:modulename ,name))))
        ,@(if (not dependencies)
              '()
              `((propagated-inputs
@@ -398,15 +454,13 @@ SOURCE-URL."
                          `(,name
                            (,'unquote
                             ,(string->symbol name))))
-                       dev-dependencies)))))
-       (native-search-paths
-        (list (search-path-specification
-               (variable "NODE_PATH")
-               (files '("lib/node_modules")))))
+                       ;dev-dependencies
+'()
+)))))
        (synopsis ,description) ; no synopsis field in package.json files
        (description ,description)
        (home-page ,home-page)
-       (license ,(license->symbol license)))))
+       (license ,license))))
 
 (define (extract-guix-dependencies dependencies)
   "Returns a list of dependencies according to the guix naming scheme, from
@@ -422,27 +476,48 @@ npm list of dependencies DEPENDENCIES."
       '()
       (map car dependencies)))
 
+(define (extract-license package-json)
+  (let ((license-entry (assoc-ref package-json "license"))
+        (license-legacy (assoc-ref package-json "licenses")))
+    ;(display (string-append "Wut:" license-entry license-legacy))
+    ;;(format #t "We had: ~a, and got: ~a ~a" package-json license-entry license-legacy)
+    (cond
+     ((string? license-entry)
+      (spdx-string->license license-entry))
+     ((list? license-entry)
+      (spdx-string->license (assoc-ref license-entry "type")))
+     ((and license-legacy (positive? (length license-legacy)))
+      `(list ,@(map (lambda (l) (spdx-string->license (assoc-ref l "type"))) license-legacy)))
+     (else
+      #f))))
 
 (define (npm->guix-package package-name)
   "Fetch the metadata for PACKAGE-NAME from registry.npmjs.com and return the
  `package' s-expression corresponding to that package, or #f on failure."
   (let ((package (npm-fetch package-name)))
-    (and package
-         (let* ((name (assoc-ref package "name"))
-                (version (latest-source-release package))
-                (curr (assoc-ref* package "versions" version))
-                (raw-dependencies (assoc-ref curr "dependencies"))
-                (npm-dependencies (extract-npm-dependencies raw-dependencies))
-                (dependencies (extract-guix-dependencies raw-dependencies))
-                (dev-dependencies (extract-guix-dependencies (assoc-ref curr "dev-dependencies")))
-                (description (assoc-ref package "description"))
-                (home-page (assoc-ref package "homepage"))
-                (license (spdx-string->license (assoc-ref package "license")))
-                (source-url (source-uri package version)))
-           (values 
-            (make-npm-sexp name version home-page description
-                           dependencies dev-dependencies license source-url)
-            npm-dependencies)))))
+    (if package
+        (let* ((name (assoc-ref package "name"))
+               (version (latest-source-release package))
+               (curr (assoc-ref* package "versions" version))
+               (raw-dependencies (assoc-ref curr "dependencies"))
+               (raw-dev-dependencies (assoc-ref curr "devDependencies"))
+               (dependencies (extract-guix-dependencies raw-dependencies))
+               (dev-dependencies (extract-guix-dependencies
+                                  raw-dev-dependencies))
+               (npm-dependencies
+                (append
+                 (extract-npm-dependencies raw-dependencies)
+                 ;;(extract-npm-dependencies raw-dev-dependencies)
+                 ))
+               (description (assoc-ref package "description"))
+               (home-page (assoc-ref package "homepage"))
+               (license (extract-license curr))
+               (source-url (source-uri package version)))
+          (values 
+           (make-npm-sexp name version home-page description
+                          dependencies dev-dependencies license source-url)
+           npm-dependencies))
+        (error "Could not download metadata:" package-name))))
 
 (define* (recursive-import package-name)
   (define (iter name imported)
@@ -454,7 +529,7 @@ npm list of dependencies DEPENDENCIES."
           (lambda (key . parameters)
             (format (current-error-port)
                     "Uncaught throw to '~a: ~a\n" key parameters)
-            (values #f #f)))
+            (values (node-package-name name) '())))
       (if package
           (let* ((new-entry    (cons name (list package)))
                  (imported     (cons new-entry imported))
@@ -468,9 +543,14 @@ npm list of dependencies DEPENDENCIES."
             imported))))
   (iter package-name '()))
 
-;(define %npm-updater
-  ;(upstream-updater
-   ;(name 'npm)
-   ;(description "Updater for npm packages")
-   ;(pred node-package?)
-   ;(latest latest-source-release)))
+(define (npm-package? package)
+  "Return true if PACKAGE is an npm package from NPM."
+  (let ((build-system (package-build-system package)))
+    (eq? build-system node-build-system)))
+
+;; (define %npm-updater
+;;   (upstream-updater
+;;    (name 'npm)
+;;    (description "Updater for npm packages")
+;;    (pred node-package?)
+;;    (latest latest-source-release)))

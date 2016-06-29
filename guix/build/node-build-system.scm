@@ -20,6 +20,7 @@
 (define-module (guix build node-build-system)
   #:use-module ((guix build gnu-build-system) #:prefix gnu:)
   #:use-module (guix build utils)
+  #:use-module (guix build json)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
   #:use-module (ice-9 regex)
@@ -34,6 +35,11 @@
 ;; Builder-side code of the standard Node/npm package build procedure.
 ;;
 ;; Code:
+
+(define* (read-package-data #:key (filename "package.json"))
+  (call-with-input-file filename
+    (lambda (port)
+      (read-json port))))
 
 (define (delete-minified-files . _)
   "Delete minified files and their associated source mappings on the grounds
@@ -63,7 +69,7 @@
       (zero? (system* "npm" "test"))
       #t))
 
-(define* (install #:key outputs inputs modulename global? #:allow-other-keys)
+(define* (install #:key outputs inputs global? #:allow-other-keys)
   "Install the node module to the output store item. MODULENAME defines how
 under which name the module will be installed, GLOBAL? determines whether this
 is an npm global install."
@@ -71,7 +77,8 @@ is an npm global install."
          (src-dir     (getcwd))
          (tgt-dir     (string-append out "/lib"))
          (bin-dir     (string-append out "/bin"))
-         (home        (string-append (getenv "NIX_BUILD_TOP") "/npm-home")))
+         (home        (string-append (getenv "NIX_BUILD_TOP") "/npm-home"))
+         (modulename  (string-append  (assoc-ref (read-package-data) "name"))))
     (setenv "HOME" home)
     (mkdir-p tgt-dir)
     (copy-recursively "." (string-append tgt-dir "/node_modules/" modulename))
@@ -84,8 +91,8 @@ is an npm global install."
   (modify-phases gnu:%standard-phases
     (add-after 'unpack 'delete-minified-files delete-minified-files)
     (delete 'configure)
-    ;(replace 'build build)
-    (delete 'build)
+    (replace 'build build)
+    ;(delete 'build)
     (replace 'install install)
     (delete 'check)
     (delete 'strip) ;;

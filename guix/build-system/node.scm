@@ -38,6 +38,7 @@ registry."
 (define %node-build-system-modules
   ;; Build-side modules imported by default.
   `((guix build node-build-system)
+    (guix build json)
     ,@%gnu-build-system-modules)) ;; TODO: Might be not needed
 
 (define (default-node)
@@ -75,7 +76,6 @@ registry."
 (define* (node-build store name inputs
                      #:key
                      (npm-flags ''())
-                     (modulename "noname")
                      (global? #f)
                      (test-target "test")
                      (tests? #f)
@@ -87,6 +87,7 @@ registry."
                      (guile #f)
                      (imported-modules %node-build-system-modules)
                      (modules '((guix build node-build-system)
+                                (guix build json)
                                 (guix build utils))))
   "Build SOURCE using NODE and INPUTS."
   (define builder
@@ -102,7 +103,6 @@ registry."
                                 source))
                    #:system ,system
                    #:npm-flags ,npm-flags
-                   #:modulename ,modulename
                    #:global? ,global?
                    #:test-target ,test-target
                    #:tests? ,tests?
