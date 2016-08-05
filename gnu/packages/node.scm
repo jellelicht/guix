@@ -37,14 +37,14 @@
 (define-public node
   (package
     (name "node")
-    (version "6.0.0")
+    (version "6.4.0")
     (source (origin
               (method url-fetch)
               (uri (string-append "http://nodejs.org/dist/v" version
                                   "/node-v" version ".tar.gz"))
               (sha256
                (base32
-                "0cpw7ng193jgfbw2g1fd0kcglmjjkbj4xb89g00z8zz0lj0nvdbd"))))
+                "1l4p2zgld68c061njx6drxm06685hmp656ijm9i0hnyg30397355"))))
     (build-system gnu-build-system)
     (arguments
      ;; TODO: Package http_parser and add --shared-http-parser.
@@ -78,10 +78,10 @@
              ;; FIXME: These tests fail in the build container, but they don't
              ;; seem to be indicative of real problems in practice.
              (for-each delete-file
-                       '("test/parallel/test-cluster-master-error.js"
+                       '("test/parallel/test-dgram-membership.js"
+                         "test/parallel/test-cluster-master-error.js"
                          "test/parallel/test-cluster-master-kill.js"
                          "test/parallel/test-npm-install.js"
-                         "test/parallel/test-stdout-close-unref.js"
                          "test/sequential/test-child-process-emfile.js"))
              #t))
          (replace 'configure
@@ -101,22 +101,15 @@
                              (string-append (assoc-ref inputs "python")
                                             "/bin/python")
                              "configure" flags)))))
-         (replace 'patch-shebangs
-           (lambda* (#:key outputs #:allow-other-keys #:rest all)
-             ;; Work around <http://bugs.gnu.org/23723>.
-             (let* ((patch  (assoc-ref %standard-phases 'patch-shebangs))
-                    (npm    (string-append (assoc-ref outputs "out")
-                                           "/bin/npm"))
+         (add-after 'patch-shebangs 'patch-npm-shebang
+           (lambda* (#:key outputs #:allow-other-keys)
+             (let* ((bindir (string-append (assoc-ref outputs "out")
+                                           "/bin"))
+                    (npm    (string-append bindir "/npm"))
                     (target (readlink npm)))
-               (and (apply patch all)
-                    (with-directory-excursion (dirname npm)
-                      ;; Turn NPM into a symlink to TARGET again, which 'npm'
-                      ;; relies on for the resolution of relative file names
-                      ;; in JS files.
-                      (delete-file target)
-                      (rename-file npm target)
-                      (symlink target npm)
-                      #t))))))))
+               (with-directory-excursion bindir
+                 (patch-shebang target (list bindir))
+                 #t)))))))
     (native-inputs
      `(("python" ,python-2)
        ("perl" ,perl)
