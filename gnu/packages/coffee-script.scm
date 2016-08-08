@@ -25,6 +25,8 @@
   #:use-module (guix build-system node)
   #:use-module (guix build-system ruby)
   #:use-module (guix build-system gnu)
+  #:use-module (gnu packages adns)
+  #:use-module (gnu packages curl)
   #:use-module (gnu packages python)
   #:use-module (gnu packages base)
   #:use-module (gnu packages linux)
@@ -36,6 +38,93 @@
   ;#:use-module (gnu packages perl)
   )
 
+(define-public node-ancient
+  (package
+    (name "node-ancient")
+    (version "0.3.0")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "http://nodejs.org/dist/v" version
+                                  "/node-v" version ".tar.gz"))
+              (sha256
+               (base32
+                "1d972im6zfpl2isbvqqh5yi2wvkyj7cxj4yhi8805anf6v8w6lxa"))))
+    (build-system gnu-build-system)
+    (arguments
+     '(#:configure-flags `("--without-snapshot"
+                           "--shared-cares")
+       #:make-flags (list (string-append "CXXFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include")
+                          (string-append "CFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include")
+                          )
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'patch-files
+           (lambda* (#:key inputs #:allow-other-keys)
+             ;; FIXME: These tests fail in the build container, but they don't
+             ;; seem to be indicative of real problems in practice.
+             (for-each delete-file
+                       '("test/simple/test-dgram-multicast.js"
+                         "test/simple/test-http-304.js"
+                         "test/simple/test-c-ares.js"
+                         "test/simple/test-stdout-to-file.js"
+                         "test/simple/test-error-reporting.js"
+                         "test/simple/test-readline.js"
+                         "test/simple/test-child-process-deprecated-api.js"
+                         "test/simple/test-stdin-from-file.js"
+                         "test/simple/test-pipe-head.js"
+                         "test/simple/test-child-process-exec-env.js"
+                         "test/simple/test-child-process-exec-cwd.js"
+                         "test/simple/test-fs-realpath.js"
+                         "test/simple/test-child-process-cwd.js"
+                         "test/simple/test-exec.js"
+                         "test/simple/test-child-process-custom-fds.js"
+                         "test/simple/test-child-process-env.js"
+                         ;; The following test depends on an apache http server
+                         "test/simple/test-http-full-response.js"))))
+          ;; https://github.com/nodejs/node-v0.x-archive/issues/3286
+         (replace 'configure
+           ;; Node's configure script is actually a python script, so we can't
+           ;; run it with bash.
+           (lambda* (#:key outputs (configure-flags '()) inputs
+                     #:allow-other-keys)
+             (let* ((prefix (assoc-ref outputs "out"))
+                    (flags
+                     (cons (string-append "--prefix=" prefix)
+                           configure-flags)))
+               (format #t "build directory: ~s~%" (getcwd))
+               (format #t "configure flags: ~s~%" flags)
+               (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+               (zero? (apply system*
+                             "./configure" flags))))))))
+    (native-inputs
+     `(("coreutils" ,coreutils) ;; for running dd with make test
+       ("curl" ,curl) ;; for running dd with make test
+       ("python" ,python-2)
+       ("linux-headers" ,linux-libre-headers)
+       ("util-linux" ,util-linux)
+       ("pkg-config" ,pkg-config)))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    (inputs
+     `(
+       ("openssl" ,openssl)
+       ("c-ares" ,c-ares)
+       ))
+    (synopsis "Evented I/O for V8 JavaScript")
+    (description "Node.js is a platform built on Chrome's JavaScript runtime
+for easily building fast, scalable network applications.  Node.js uses an
+event-driven, non-blocking I/O model that makes it lightweight and efficient,
+perfect for data-intensive real-time applications that run across distributed
+devices.")
+    (home-page "http://nodejs.org/")
+    (license expat)))
 
 (define-public node-legacy
   (package
@@ -50,63 +139,53 @@
                 "1fbq56w40h71l304bq8ggf5z80g0bsldbqciy3gm8dild5pphzmc"
                 ))))
     (build-system gnu-build-system)
-     (arguments
-      ;; TODO: Package http_parser and add --shared-http-parser.
-      '(
-        ;;#:configure-flags '("--shared-openssl"
-        ;;"--shared-zlib"
-        ;;"--shared-libuv"
-        ;;"--without-snapshot")
-        #:phases
-        (modify-phases %standard-phases
-          ;; (add-before 'configure 'patch-files
-          ;;   (lambda* (#:key inputs #:allow-other-keys)
-          ;;     ;; Fix hardcoded /bin/sh references.
-          ;;     (substitute* '("lib/child_process.js"
-          ;;                    "lib/internal/v8_prof_polyfill.js"
-          ;;                    "test/parallel/test-stdio-closed.js")
-          ;;       (("'/bin/sh'")
-          ;;        (string-append "'" (which "bash") "'")))
+    (arguments
+     '(#:configure-flags `("--without-snapshot"
+                           "--shared-cares")
+       #:make-flags (list (string-append "CXXFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include"))
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'patch-files
+           (lambda* (#:key inputs #:allow-other-keys)
+             (substitute* '("test/simple/test-child-process-deprecated-api.js"
+                            "test/simple/test-child-process-exec-env.js"
+                            "test/simple/test-child-process-env.js")
+               (("'/usr/bin/env'")
+                (string-append "'" (which "env") "'")))
 
-          ;;     ;; Fix hardcoded /usr/bin/env references.
-          ;;     (substitute* '("test/parallel/test-child-process-default-options.js"
-          ;;                    "test/parallel/test-child-process-env.js"
-          ;;                    "test/parallel/test-child-process-exec-env.js")
-          ;;       (("'/usr/bin/env'")
-          ;;        (string-append "'" (which "env") "'")))
-
-          ;;     ;; Having the build fail because of linter errors is insane!
-          ;;     (substitute* '("Makefile")
-          ;;       (("	\\$\\(MAKE\\) jslint") "")
-          ;;       (("	\\$\\(MAKE\\) cpplint\n") ""))
-
-          ;;     ;; FIXME: These tests fail in the build container, but they don't
-          ;;     ;; seem to be indicative of real problems in practice.
-          ;;     (for-each delete-file
-          ;;               '("test/parallel/test-cluster-master-error.js"
-          ;;                 "test/parallel/test-cluster-master-kill.js"
-          ;;                 "test/parallel/test-npm-install.js"
-          ;;                 "test/parallel/test-stdout-close-unref.js"
-          ;;                 "test/sequential/test-child-process-emfile.js"))
-          ;;     #t))
-          (replace 'configure
-            ;; Node's configure script is actually a python script, so we can't
-            ;; run it with bash.
-            (lambda* (#:key outputs (configure-flags '()) inputs
-                      #:allow-other-keys)
-              (let* ((prefix (assoc-ref outputs "out"))
-                     (flags (cons (string-append "--prefix=" prefix)
-                                  configure-flags)))
-                (format #t "build directory: ~s~%" (getcwd))
-                (format #t "configure flags: ~s~%" flags)
-                ;; Node's configure script expects the CC environment variable to
-                ;; be set.
-                (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
-                (zero? (apply system* "./configure" flags))))))))
+             (for-each delete-file
+                       '("test/simple/test-net-connect-timeout.js"
+                         "test/simple/test-http-dns-fail.js"
+                         "test/simple/test-regress-GH-819.js"
+                         "test/simple/test-child-process-exec-cwd.js"
+                         "test/simple/test-dgram-multicast.js"
+                         "test/simple/test-c-ares.js"
+                         "test/simple/test-process-env.js"))))
+         ;; https://github.com/nodejs/node-v0.x-archive/issues/3286
+         (replace 'configure
+           ;; Node's configure script is actually a python script, so we can't
+           ;; run it with bash.
+           (lambda* (#:key outputs (configure-flags '()) inputs
+                     #:allow-other-keys)
+             (let* ((prefix (assoc-ref outputs "out"))
+                    (flags
+                     (cons (string-append "--prefix=" prefix)
+                           configure-flags)))
+               (format #t "build directory: ~s~%" (getcwd))
+               (format #t "configure flags: ~s~%" flags)
+               (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+               (zero? (apply system*
+                             "./configure" flags))))))
+       ))
     (native-inputs
      `(
+       ("coreutils" ,coreutils) ;; for running dd with make test
+       ("curl" ,curl) ;; for running dd with make test
        ("python" ,python-2)
-       ;;("linux-headers" ,linux-libre-headers)
+       ("linux-headers" ,linux-libre-headers)
        ("util-linux" ,util-linux)
        ("pkg-config" ,pkg-config)
        ;;("perl" ,perl)
@@ -120,9 +199,8 @@
             (files '("lib/node_modules")))))
     (inputs
      `(
-       ;;("libuv" ,libuv)
        ("openssl" ,openssl)
-       ;;("zlib" ,compression:zlib)
+       ("c-ares" ,c-ares)
        ))
     (synopsis "Evented I/O for V8 JavaScript")
     (description "Node.js is a platform built on Chrome's JavaScript runtime
@@ -149,12 +227,12 @@ devices.")
     (arguments
      `(#:tests? #f
        #:phases
-        (modify-phases %standard-phases
-          (add-after 'unpack 'fix-gemspec-date
-            (lambda _
-              (substitute* "coffee-script.gemspec"
-                (("2010-2-8") "2010-02-08")))))
-        ;; Werkt nog op fa63288f524353bcb037252d57612e240cb5489c
+       (modify-phases %standard-phases
+         (add-after 'unpack 'fix-gemspec-date
+           (lambda _
+             (substitute* "coffee-script.gemspec"
+               (("2010-2-8") "2010-02-08")))))
+       ;; Werkt nog op fa63288f524353bcb037252d57612e240cb5489c
 
        ))
     (native-inputs
@@ -253,12 +331,12 @@ features, plus some of its own.")
     (name "node-ansi-font")
     (version "0.0.2")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/Gozala/ansi-font/archive/v0.0.2/ansi-font-v0.0.2.tar.gz")
-        (sha256
-          (base32
-            "1sp8kf4wps9spwspi64x7fsir6lkgb4r6sl811y4v8wnkz3hdf31"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/Gozala/ansi-font/archive/v0.0.2/ansi-font-v0.0.2.tar.gz")
+       (sha256
+        (base32
+         "1sp8kf4wps9spwspi64x7fsir6lkgb4r6sl811y4v8wnkz3hdf31"))))
     (build-system node-build-system)
     (propagated-inputs `())
     (native-inputs `())
@@ -271,124 +349,124 @@ features, plus some of its own.")
     (name "node-has-flag")
     (version "2.0.0")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/sindresorhus/has-flag/archive/v2.0.0/has-flag-v2.0.0.tar.gz")
-        (sha256
-          (base32
-            "1wsgw71fmsb09vr0mxx44l52qjqp1vdxg4dwv8j72wbaffc79xw1"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/sindresorhus/has-flag/archive/v2.0.0/has-flag-v2.0.0.tar.gz")
+       (sha256
+        (base32
+         "1wsgw71fmsb09vr0mxx44l52qjqp1vdxg4dwv8j72wbaffc79xw1"))))
     (build-system node-build-system)
     (propagated-inputs `())
     (native-inputs `())
     (synopsis "Check if argv has a specific flag")
     (description "Check if argv has a specific flag")
     (home-page
-      "https://github.com/sindresorhus/has-flag#readme")
+     "https://github.com/sindresorhus/has-flag#readme")
     (license expat)))
 (define-public node-supports-color
   (package
     (name "node-supports-color")
     (version "3.1.2")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/chalk/supports-color/archive/v3.1.2/supports-color-v3.1.2.tar.gz")
-        (sha256
-          (base32
-            "1xj4z60f8n0wxn4zgjhms867n5s9c9r5ia9qv0faa2v42slf1479"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/chalk/supports-color/archive/v3.1.2/supports-color-v3.1.2.tar.gz")
+       (sha256
+        (base32
+         "1xj4z60f8n0wxn4zgjhms867n5s9c9r5ia9qv0faa2v42slf1479"))))
     (build-system node-build-system)
     (propagated-inputs
-      `(("node-has-flag" ,node-has-flag)))
+     `(("node-has-flag" ,node-has-flag)))
     (native-inputs `())
     (synopsis
-      "Detect whether a terminal supports color")
+     "Detect whether a terminal supports color")
     (description
-      "Detect whether a terminal supports color")
+     "Detect whether a terminal supports color")
     (home-page
-      "https://github.com/chalk/supports-color")
+     "https://github.com/chalk/supports-color")
     (license expat)))
 (define-public node-has-ansi
   (package
     (name "node-has-ansi")
     (version "2.0.0")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/sindresorhus/has-ansi/archive/2.0.0/has-ansi-2.0.0.tar.gz")
-        (sha256
-          (base32
-            "1jal36jp1k41ryzpp4hz2271xnlaw8sqz5ybarlbd4r6w04mrz2m"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/sindresorhus/has-ansi/archive/2.0.0/has-ansi-2.0.0.tar.gz")
+       (sha256
+        (base32
+         "1jal36jp1k41ryzpp4hz2271xnlaw8sqz5ybarlbd4r6w04mrz2m"))))
     (build-system node-build-system)
     (propagated-inputs
-      `(("node-ansi-regex" ,node-ansi-regex)))
+     `(("node-ansi-regex" ,node-ansi-regex)))
     (native-inputs `())
     (synopsis
-      "Check if a string has ANSI escape codes")
+     "Check if a string has ANSI escape codes")
     (description
-      "Check if a string has ANSI escape codes")
+     "Check if a string has ANSI escape codes")
     (home-page
-      "https://github.com/sindresorhus/has-ansi")
+     "https://github.com/sindresorhus/has-ansi")
     (license expat)))
 (define-public node-escape-string-regexp
   (package
     (name "node-escape-string-regexp")
     (version "1.0.5")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/sindresorhus/escape-string-regexp/archive/v1.0.5/escape-string-regexp-v1.0.5.tar.gz")
-        (sha256
-          (base32
-            "0ygf86hs0lrhd6hmnbgz720p6nh4b6prhcmrdy7mdx6ad05bxj6d"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/sindresorhus/escape-string-regexp/archive/v1.0.5/escape-string-regexp-v1.0.5.tar.gz")
+       (sha256
+        (base32
+         "0ygf86hs0lrhd6hmnbgz720p6nh4b6prhcmrdy7mdx6ad05bxj6d"))))
     (build-system node-build-system)
     (propagated-inputs `())
     (native-inputs `())
     (synopsis "Escape RegExp special characters")
     (description "Escape RegExp special characters")
     (home-page
-      "https://github.com/sindresorhus/escape-string-regexp")
+     "https://github.com/sindresorhus/escape-string-regexp")
     (license expat)))
 (define-public node-ansi-styles
   (package
     (name "node-ansi-styles")
     (version "2.2.1")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/chalk/ansi-styles/archive/v2.2.1/ansi-styles-v2.2.1.tar.gz")
-        (sha256
-          (base32
-            "1xz3wmrhcbfxjjygb66qjqll257crgrpqx53ynipiawvzkw07rsa"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/chalk/ansi-styles/archive/v2.2.1/ansi-styles-v2.2.1.tar.gz")
+       (sha256
+        (base32
+         "1xz3wmrhcbfxjjygb66qjqll257crgrpqx53ynipiawvzkw07rsa"))))
     (build-system node-build-system)
     (propagated-inputs `())
     (native-inputs `())
     (synopsis
-      "ANSI escape codes for styling strings in the terminal")
+     "ANSI escape codes for styling strings in the terminal")
     (description
-      "ANSI escape codes for styling strings in the terminal")
+     "ANSI escape codes for styling strings in the terminal")
     (home-page
-      "https://github.com/chalk/ansi-styles#readme")
+     "https://github.com/chalk/ansi-styles#readme")
     (license expat)))
 (define-public node-ansi-regex
   (package
     (name "node-ansi-regex")
     (version "2.0.0")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/sindresorhus/ansi-regex/archive/2.0.0/ansi-regex-2.0.0.tar.gz")
-        (sha256
-          (base32
-            "17bq99qp4gic157pdnnhl5hxrc4qmlgk38yq0pycylc7cxas40cx"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/sindresorhus/ansi-regex/archive/2.0.0/ansi-regex-2.0.0.tar.gz")
+       (sha256
+        (base32
+         "17bq99qp4gic157pdnnhl5hxrc4qmlgk38yq0pycylc7cxas40cx"))))
     (build-system node-build-system)
     (propagated-inputs `())
     (native-inputs `())
     (synopsis
-      "Regular expression for matching ANSI escape codes")
+     "Regular expression for matching ANSI escape codes")
     (description
-      "Regular expression for matching ANSI escape codes")
+     "Regular expression for matching ANSI escape codes")
     (home-page
-      "https://github.com/sindresorhus/ansi-regex")
+     "https://github.com/sindresorhus/ansi-regex")
     (license expat)))
 
 (define-public node-strip-ansi
@@ -396,15 +474,15 @@ features, plus some of its own.")
     (name "node-strip-ansi")
     (version "3.0.1")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/chalk/strip-ansi/archive/v3.0.1/strip-ansi-v3.0.1.tar.gz")
-        (sha256
-          (base32
-            "03kvhmnk7dyi2z1app80pkr6501gq3w64fd837nh2hlg0n4qadsa"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/chalk/strip-ansi/archive/v3.0.1/strip-ansi-v3.0.1.tar.gz")
+       (sha256
+        (base32
+         "03kvhmnk7dyi2z1app80pkr6501gq3w64fd837nh2hlg0n4qadsa"))))
     (build-system node-build-system)
     (propagated-inputs
-      `(("node-ansi-regex" ,node-ansi-regex)))
+     `(("node-ansi-regex" ,node-ansi-regex)))
     (native-inputs `())
     (synopsis "Strip ANSI escape codes")
     (description "Strip ANSI escape codes")
@@ -416,29 +494,29 @@ features, plus some of its own.")
     (name "node-chalk")
     (version "1.1.3")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/chalk/chalk/archive/v1.1.3/chalk-v1.1.3.tar.gz")
-        (sha256
-          (base32
-            "1rkawhaywsswig9x432j7zk16qrall5avpqkzr1njzia4c5wbrad"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/chalk/chalk/archive/v1.1.3/chalk-v1.1.3.tar.gz")
+       (sha256
+        (base32
+         "1rkawhaywsswig9x432j7zk16qrall5avpqkzr1njzia4c5wbrad"))))
     (build-system node-build-system)
     (arguments
      `(#:tests? #f)) ;;XXX: Need major test framework bootstrapped
     (propagated-inputs
-      `(("node-strip-ansi" ,node-strip-ansi)
-        ("node-ansi-styles" ,node-ansi-styles)
-        ("node-escape-string-regexp"
-         ,node-escape-string-regexp)
-        ("node-has-ansi" ,node-has-ansi)
-        ("node-supports-color" ,node-supports-color)))
+     `(("node-strip-ansi" ,node-strip-ansi)
+       ("node-ansi-styles" ,node-ansi-styles)
+       ("node-escape-string-regexp"
+        ,node-escape-string-regexp)
+       ("node-has-ansi" ,node-has-ansi)
+       ("node-supports-color" ,node-supports-color)))
     (native-inputs `())
     (synopsis
-      "Terminal string styling done right. Much color.")
+     "Terminal string styling done right. Much color.")
     (description
-      "Terminal string styling done right. Much color.")
+     "Terminal string styling done right. Much color.")
     (home-page
-      "https://github.com/chalk/chalk#readme")
+     "https://github.com/chalk/chalk#readme")
     (license expat)))
 
 
@@ -447,20 +525,20 @@ features, plus some of its own.")
     (name "node-test")
     (version "0.6.0")
     (source
-      (origin
-        (method url-fetch)
-        (uri "https://github.com/Gozala/test-commonjs/archive/v0.6.0/test-commonjs-v0.6.0.tar.gz")
-        (sha256
-          (base32
-            "166ja3j1hk760xj4y6ghlakq6gnm1n2j3jd26x04xs82x8pbm3qy"))))
+     (origin
+       (method url-fetch)
+       (uri "https://github.com/Gozala/test-commonjs/archive/v0.6.0/test-commonjs-v0.6.0.tar.gz")
+       (sha256
+        (base32
+         "166ja3j1hk760xj4y6ghlakq6gnm1n2j3jd26x04xs82x8pbm3qy"))))
     (build-system node-build-system)
     (propagated-inputs
-      `(("node-ansi-font" ,node-ansi-font)))
+     `(("node-ansi-font" ,node-ansi-font)))
     (native-inputs `())
     (synopsis "(Un)CommonJS test runner.")
     (description "(Un)CommonJS test runner.")
     (home-page
-      "https://github.com/Gozala/test-commonjs/")
+     "https://github.com/Gozala/test-commonjs/")
     (license expat)))
 
 (define-public node-underscore
