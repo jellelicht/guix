@@ -197,22 +197,21 @@ devices.")
        (modify-phases %standard-phases
          (add-before 'configure 'patch-files
            (lambda* (#:key inputs #:allow-other-keys)
-             (substitute* '("test/simple/test-child-process-deprecated-api.js"
-                            "test/simple/test-child-process-exec-env.js"
-                            "test/simple/test-child-process-env.js")
+             (substitute* '("test/simple/test-child-process-env.js"
+                            "test/simple/test-child-process-deprecated-api.js"
+                            "test/simple/test-child-process-custom-fds.js")
                (("'/usr/bin/env'")
-                (string-append "'" (which "env") "'")))
-
+                (string-append "'" (which "env") "'"))
+               (("'/bin/echo'")
+                 (string-append "'" (which "echo") "'")))
              (for-each delete-file
-                       '(
-                         "test/simple/test-init.js"
+                       '("test/simple/test-init.js"
                          "test/simple/test-https-simple.js"
                          "test/simple/test-dgram-multicast.js"
                          "test/simple/test-http-304.js"
                          "test/simple/test-c-ares.js"
                          "test/simple/test-stdout-to-file.js"
                          "test/simple/test-error-reporting.js"
-                         "test/simple/test-child-process-deprecated-api.js"
                          "test/simple/test-stdin-from-file.js"
                          "test/simple/test-pipe-head.js"
                          "test/simple/test-child-process-exec-env.js"
@@ -226,10 +225,10 @@ devices.")
                          "test/simple/test-http-dns-fail.js"
                          "test/simple/test-net-connect-timeout.js"
                          "test/simple/test-pipe-file-to-http.js"
-                         "test/simple/test-child-process-custom-fds.js"
                          "test/simple/test-process-env.js"
                          "test/simple/test-http-curl-chunk-problem.js"
-                         "test/simple/test-cli-eval.js"))))
+                         "test/simple/test-cli-eval.js"))
+             #t))
          (replace 'configure
            ;; Node's configure script is actually a python script, so we can't
            ;; run it with bash.
