@@ -307,7 +307,8 @@ devices.")
                          "test/simple/test-exec.js"
                          "test/simple/test-child-process-custom-fds.js"
                          "test/simple/test-child-process-env.js"
-                         "test/simple/test-http-full-response.js"))))
+                         "test/simple/test-http-full-response.js"))
+             #t))
          (replace 'configure
            ;; Node's configure script is actually a python script, so we can't
            ;; run it with bash.
@@ -375,7 +376,8 @@ devices.")
                          "test/simple/test-exec.js"
                          "test/simple/test-tcp-binary.js" 
                          "test/simple/test-fs-realpath.js"
-                         "test/simple/test-child-process-env.js"))))
+                         "test/simple/test-child-process-env.js"))
+             #t))
          (replace 'configure
            ;; Node's configure script is actually a python script, so we can't
            ;; run it with the standard configure flags.
