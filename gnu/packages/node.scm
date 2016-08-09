@@ -25,6 +25,7 @@
   #:use-module (guix derivations)
   #:use-module (guix download)
   #:use-module (guix build-system gnu)
+  #:use-module (gnu packages adns)
   #:use-module (gnu packages base)
   #:use-module (gnu packages compression)
   #:use-module (gnu packages gcc)
@@ -86,6 +87,8 @@ it does not buffer data, it can be interrupted at anytime.")
      '(#:configure-flags '("--shared-openssl"
                            "--shared-zlib"
                            "--shared-libuv"
+                           "--shared-cares"
+                           "--shared-http-parser"
                            "--without-snapshot")
        #:phases
        (modify-phases %standard-phases
@@ -158,7 +161,9 @@ it does not buffer data, it can be interrupted at anytime.")
     (inputs
      `(("libuv" ,libuv)
        ("openssl" ,tls:openssl)
-       ("zlib" ,zlib)))
+       ("zlib" ,compression:zlib)
+       ("http-parser" ,http-parser)
+       ("c-ares" ,c-ares)))
     (synopsis "Evented I/O for V8 JavaScript")
     (description "Node.js is a platform built on Chrome's JavaScript runtime
 for easily building fast, scalable network applications.  Node.js uses an
