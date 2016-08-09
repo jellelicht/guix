@@ -256,8 +256,7 @@ devices.")
        ("pkg-config" ,pkg-config)))
     (inputs
      `(("openssl" ,tls:openssl)
-       ("c-ares" ,c-ares)))
-    ))
+       ("c-ares" ,c-ares)))))
 
 (define-public node-0.2
   (package (inherit node-0.5)
