@@ -32,7 +32,42 @@
   #:use-module (gnu packages linux)
   #:use-module (gnu packages perl)
   #:use-module (gnu packages python)
-  #:use-module (gnu packages tls))
+  #:use-module ((gnu packages tls) #:prefix tls:)
+  #:use-module (gnu packages valgrind))
+
+(define-public http-parser
+  (package
+    (name "http-parser")
+    (version "2.7.1")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "https://github.com/nodejs/http-parser/archive/v"
+                                  version ".tar.gz"))
+              (sha256 (base32 "1cw6nf8xy4jhib1w0jd2y0gpqjbdasg8b7pkl2k2vpp54k9rlh3h"))))
+    (build-system gnu-build-system)
+    (arguments
+     '(#:make-flags (list "CC=gcc" (string-append "DESTDIR=" (assoc-ref %outputs "out")))
+       #:test-target "test-valgrind"
+       #:phases
+       (modify-phases %standard-phases
+         (delete 'configure)
+         (add-before 'build 'patch-makefile
+           (lambda* (#:key inputs outputs #:allow-other-keys)
+              (substitute* '("Makefile")
+                (("/usr/local") ""))))
+         (replace 'build
+           (lambda* (#:key make-flags #:allow-other-keys)
+             (zero? (apply system* "make" "library" make-flags))))
+         )))
+    (inputs '())
+    (native-inputs `(("valgrind" ,valgrind)))
+    (home-page "https://github.com/nodejs/http-parser")
+    (synopsis "HTTP request/response parser for C")
+    (description "HTTP parser is a parser for HTTP messages written in C.  It
+parses both requests and responses.  The parser is designed to be used in
+performance HTTP applications.  It does not make any syscalls nor allocations,
+it does not buffer data, it can be interrupted at anytime.")
+    (license expat)))
 
 (define-public node
   (package
@@ -118,7 +153,7 @@
        ("which" ,which)))
     (inputs
      `(("libuv" ,libuv)
-       ("openssl" ,openssl)
+       ("openssl" ,tls:openssl)
        ("zlib" ,zlib)))
     (synopsis "Evented I/O for V8 JavaScript")
     (description "Node.js is a platform built on Chrome's JavaScript runtime
