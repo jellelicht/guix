@@ -33,98 +33,7 @@
   #:use-module (gnu packages base)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages pkg-config)
-  #:use-module (gnu packages tls)
-  ;#:use-module (gnu packages gcc)
-  ;#:use-module (gnu packages libevent)
-  ;#:use-module (gnu packages linux)
-  ;#:use-module (gnu packages perl)
-  )
-;ancient
-
-;; (define-public node-legacy
-;;   (package
-;;     (name "node-legacy")
-;;     (version "0.5.0")
-;;     (source (origin
-;;               (method url-fetch)
-;;               (uri (string-append "http://nodejs.org/dist/v" version
-;;                                   "/node-v" version ".tar.gz"))
-;;               (sha256
-;;                (base32
-;;                 "1fbq56w40h71l304bq8ggf5z80g0bsldbqciy3gm8dild5pphzmc"
-;;                 ))))
-;;     (build-system gnu-build-system)
-;;     (arguments
-;;      '(#:configure-flags `("--without-snapshot"
-;;                            "--shared-cares")
-;;        #:make-flags (list (string-append "CXXFLAGS=-I"
-;;                                          (assoc-ref %build-inputs "linux-headers")
-;;                                          "/include"))
-;;        #:test-target "test"
-;;        #:phases
-;;        (modify-phases %standard-phases
-;;          (add-before 'configure 'patch-files
-;;            (lambda* (#:key inputs #:allow-other-keys)
-;;              (substitute* '("test/simple/test-child-process-deprecated-api.js"
-;;                             "test/simple/test-child-process-exec-env.js"
-;;                             "test/simple/test-child-process-env.js")
-;;                (("'/usr/bin/env'")
-;;                 (string-append "'" (which "env") "'")))
-
-;;              (for-each delete-file
-;;                        '("test/simple/test-net-connect-timeout.js"
-;;                          "test/simple/test-http-dns-fail.js"
-;;                          "test/simple/test-regress-GH-819.js"
-;;                          "test/simple/test-child-process-exec-cwd.js"
-;;                          "test/simple/test-dgram-multicast.js"
-;;                          "test/simple/test-c-ares.js"
-;;                          "test/simple/test-process-env.js"))))
-;;          ;; https://github.com/nodejs/node-v0.x-archive/issues/3286
-;;          (replace 'configure
-;;            ;; Node's configure script is actually a python script, so we can't
-;;            ;; run it with bash.
-;;            (lambda* (#:key outputs (configure-flags '()) inputs
-;;                      #:allow-other-keys)
-;;              (let* ((prefix (assoc-ref outputs "out"))
-;;                     (flags
-;;                      (cons (string-append "--prefix=" prefix)
-;;                            configure-flags)))
-;;                (format #t "build directory: ~s~%" (getcwd))
-;;                (format #t "configure flags: ~s~%" flags)
-;;                (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
-;;                (zero? (apply system*
-;;                              "./configure" flags))))))
-;;        ))
-;;     (native-inputs
-;;      `(
-;;        ("coreutils" ,coreutils) ;; for running dd with make test
-;;        ("curl" ,curl) ;; for running dd with make test
-;;        ("python" ,python-2)
-;;        ("linux-headers" ,linux-libre-headers)
-;;        ("util-linux" ,util-linux)
-;;        ("pkg-config" ,pkg-config)
-;;        ;;("perl" ,perl)
-;;        ;;("procps" ,procps)
-;;        ;;("util-linux" ,util-linux)
-;;        ;;("which" ,which)
-;;        ))
-;;     (native-search-paths
-;;      (list (search-path-specification
-;;             (variable "NODE_PATH")
-;;             (files '("lib/node_modules")))))
-;;     (inputs
-;;      `(
-;;        ("openssl" ,openssl)
-;;        ("c-ares" ,c-ares)
-;;        ))
-;;     (synopsis "Evented I/O for V8 JavaScript")
-;;     (description "Node.js is a platform built on Chrome's JavaScript runtime
-;; for easily building fast, scalable network applications.  Node.js uses an
-;; event-driven, non-blocking I/O model that makes it lightweight and efficient,
-;; perfect for data-intensive real-time applications that run across distributed
-;; devices.")
-;;     (home-page "http://nodejs.org/")
-;;     (license expat)))
+  #:use-module (gnu packages tls))
 
 (define (coffee-script-build-helper-wrap file lib-directory)
   `(add-after 'install 'wrap-binary
@@ -132,11 +41,15 @@
                 (let* ((out (assoc-ref outputs "out"))
                        (bin (string-append out "/" ,file))
                        (dir (string-append out "/lib/node_modules/coffee-script/" ,lib-directory)))
-                  ;(display "HELLO")
-                  ;(display ,lib-directory)
-                  ;(display dir)
+                  (display "  HELLO>   ")
+                  (display ,lib-directory)
+                  (display "  HELLO2>   ")
+                  (display dir)
+                  (display "  HELLO3>   ")
+                  (display (getenv "NODE_PATH"))
                   (wrap-program bin
-                    `("NODE_PATH" prefix (,dir ,(getenv "NODE_PATH"))))
+                    `("NODE_PATH" ":" prefix (,dir ;,(getenv "NODE_PATH")
+                                                   )))
                   #t))))
 
 
@@ -148,114 +61,12 @@
                     ;           "bin/coffee")
                   (("#!/usr/bin/env node --") "#!/usr/bin/env node")
                   (("require\\.paths.*$") "")
-                  (("process\\.mixin\\(require\\('sys'\\)\\)")
-                   " var fs = require('fs');
-var vm = require('vm');
-var path = require('path');
-var spawn = require('child_process').spawn;
-
-path.exists = fs.exists;
-var constants = process.binding('constants');
-process.O_CREAT = constants.O_CREAT;
-process.O_WRONLY = constants.O_WRONLY;
-process.O_TRUNC = constants.O_TRUNC;
-process.compile = vm.runInThisContext;
-
-process.createChildProcess= function (command, args, options) {
-    var proc = spawn(command, args, options);
-    this.addListener = function(event, cb) {
-        var wrap = function(buffer) {
-            var data = buffer.toString('utf8');
-            return cb(data);
-        };
-        if(event === 'output'){
-            proc.stdout.on('data', wrap);
-        } else if (event === 'error') {
-            proc.stderr.on('data', wrap);
-        } else {
-            console.log('(ignored addListener on createChildProcess)');
-        }
-    }
-    this.write = function(data) {
-        proc.stdin.write(data);
-    }
-
-    this.close = function() {
-        proc.kill('SIGKILL');
-    }
-    return this;
-}
-
-fs.cat = function(file) {
-    this.addCallback = function(cb) {
-        fs.readFile(file,  'utf-8', function(err, data) {
-            if (err) { console.log('Error:', err); }
-            cb(data);
-        });
-    };
-    return this;
-}
-
-var realFS = fs.open;
-fs.open = function(file, flags, mode) {
-    this.addCallback = function(cb) {
-        var res = realFS(file, flags, mode,
-                         function(err, fd){
-                             if (err) { console.log('Error:', err); }
-                             cb(fd);
-                         });
-    };
-    return this;
-}
-
-var realRD = fs.readdir;
-fs.readdir = function(path) {
-    this.addCallback = function(cb) {
-        var res = realRD(path,
-                         function(err, files){
-                             if (err) { console.log('Error:', err); }
-                             cb(files);
-                         });
-    };
-    return this;
-}
-
-var realFR = fs.readFile;
-fs.readFile = function(file) {
-    this.addCallback = function(cb) {
-        var res = realFR(file, 'utf-8', 
-                         function(err, data){
-                             if (err) { console.log('Error:', err); }
-                             cb(data);
-                         });
-    };
-    return this;
-}
-
-process.ARGV= process.argv
-
-
-var extend = function (object, properties) {
-    var __hasProp = Object.prototype.hasOwnProperty;
-    var key, val;
-    for (key in properties) {
-        val = properties[key];
-        if (__hasProp.call(properties, key)) {
-            object[key] = val;
-        }
-    }
-    return object;
-};
-process.mixin = function(object) {
-    extend(global, object);
-}
-
-process.mixin(require('sys'));")))))
+                  ))))
 
 (define (coffee-script-build-helper-generated-files dir)
   `(add-after 'unpack 'delete-generated-files
               (lambda _
-                ;;XXX: Regenerate parser, instead of keeping it
+                ;;TODO: Regenerate parser, instead of keeping it
                 (copy-file (string-append ,dir "/parser.js") (string-append ,dir "/parser.js.keep")) 
                 (for-each (lambda (file)
                             (format #t "deleting generated JavaScript file '~a'~%" file)
@@ -263,11 +74,11 @@ process.mixin(require('sys'));")))))
                           (find-files ,dir ".*\\.js$"))
                 (copy-file (string-append ,dir "/parser.js.keep") (string-append ,dir "/parser.js")))))
 
-(define (coffee-script-build-helper-build target-dir)
+(define (coffee-script-build-helper-build cs-file target-dir)
   `(replace 'build
            (lambda* (#:key inputs #:allow-other-keys)
              (let* ((cs (assoc-ref inputs "coffee-script"))
-                   (coffee (string-append cs "/bin/coffee")))
+                   (coffee (string-append cs "/" ,cs-file)))
                                         ;(setenv "NODE_PATH"
                                         ;(string-append
                                         ;(getenv "NODE_PATH")
@@ -298,9 +109,7 @@ process.mixin(require('sys'));")))))
          (add-after 'unpack 'fix-gemspec-date
            (lambda _
              (substitute* "coffee-script.gemspec"
-               (("2010-2-8") "2010-02-08")))))
-       ;; Werkt nog op fa63288f524353bcb037252d57612e240cb5489c
-       ))
+               (("2010-2-8") "2010-02-08")))))))
     (native-inputs
      `())
     (synopsis "CoffeeScript is a little language that compiles into
@@ -313,6 +122,7 @@ one-to-one with their equivalent in JavaScript, it's just another way of
 saying it. ")
     (home-page "http://jashkenas.github.com/coffee-script/")
     (license expat)))
+
 (define-public coffee-script-yolo
   (let ((commit "bedc005d67c1dc52a0a4909c439a6f6347738213")) ;;last ruby commit
     (package (inherit coffee-script-boot0)
@@ -345,6 +155,10 @@ saying it. ")
 ;; f6a1f16 commit 0f2cf552e9e0b26dd568c89be189212f3d940983 @jashkenas jashkenas committed on 17 Feb 2010 
 
 ;; WORKS!
+;;src/command_line.coffee
+;src/grammar.coffee
+
+
 (define-public coffee-script-boot1
   (let ((commit
          "7667e16732268944232d31cea6a201698ce0661a"
@@ -365,26 +179,46 @@ saying it. ")
                         (base32
                          ;;"swag"
                                         ;"1cr7x5mvjjl7pl7cs96khxijbww4fk15v287sx3mazqx5glbzx64"
-                         "0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"
+                         "0qq5p8k9yb8dx66lffjnirfb6hkv8hch82myidxcaxavi9dgl4kq"
+                         ;;"0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"
                          ;;"16ykn9i4zb143ikdricyzhiinjd2jk7sjwm46l2jhv8pn7xjz2g1"
                          ;;"0rj2gx3amw2abyzd83bgyy4983k6gz13dakz5pkic3q3wkjh9iw6"
-                         ))))
+                         ))
+                       (modules '((guix build utils)))
+                       (snippet
+                        '(begin
+                           (delete-file "src/narwhal/coffee-script.coffee")
+                           ;; (substitute* '("src/command_line.coffee" "src/grammar.coffee")
+                           ;;   (("require 'posix'")
+                           ;;    "require 'fs'")
+                           ;;   (("posix.cat\\(")
+                           ;;    "posix.readFile(")
+                           ;;   (("\\).addCallback \\(")
+                           ;;    " , (err, ")
+                           ;;   (("    compile_scripts\\(\\)")
+                           ;;    "    compile_scripts())")
+                           ;;   (("posix.write\\(fd, js\\)")
+                           ;;    "posix.write(fd, js))")
+                           ;;   )
+                           )
+                        )))
              (build-system node-build-system)
              (arguments
               `(#:tests? #f
                 #:global? #t
+                #:node ,node-0.try
                 #:phases
                 (modify-phases %standard-phases
-                  (add-after 'unpack 'remove-narwhal-support
-                    (lambda _
-                      (delete-file "src/narwhal/coffee-script.coffee")
-                      #t))
+                  ;;(add-after 'unpack 'remove-narwhal-support
+                    ;;(lambda _
+                      ;;(delete-file "src/narwhal/coffee-script.coffee")
+                      ;;#t))
                   ,(coffee-script-build-helper-backport '("bin/node_coffee"))
                   ,(coffee-script-build-helper-generated-files "lib/coffee_script")
                   ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script") 
-                  ,(coffee-script-build-helper-build "lib/coffee_script"))))
+                  ,(coffee-script-build-helper-build "bin/coffee" "lib/coffee_script"))))
              (inputs
-              `(("node" ,node)))
+              `(("node" ,node-0.try)))
              (native-inputs
               `(("coffee-script" ,coffee-script-yolo)
                 ("ruby" ,ruby))))))
@@ -393,14 +227,14 @@ saying it. ")
 ;; at least further than fbfa12c
 (define-public coffee-script-boot2
   (let ((commit
-         "7667e16732268944232d31cea6a201698ce0661a"
+         "4ea8be8e0be5521c0b94a7e6031c2c3a60725d5a"
          ;"e4bb6c91e70cd8386d76040d65e0669dd6d9a255"
          ;;"48c501a7a28b9da3681151fd30eb139ea475f853"
          ;"2d0ad73af815b2a833277741c690aea0c2ca877c"
          ;;"fa63288f524353bcb037252d57612e240cb5489c"
          ))
-    (package (inherit coffee-script-boot0)
-             (name "coffee-script-boot1")
+    (package (inherit coffee-script-boot1)
+             (name "coffee-script-boot2")
              (version (string-append "0.5.0." (string-take commit 7)))
              (source (origin
                        (method git-fetch)
@@ -411,29 +245,63 @@ saying it. ")
                         (base32
                          ;;"swag"
                                         ;"1cr7x5mvjjl7pl7cs96khxijbww4fk15v287sx3mazqx5glbzx64"
-                         "0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"
+                         ;;"0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"
+                         "0qq5p8k9yb8dx66lffjnirfb6hkv8hch82myidxcaxavi9dgl4kq"
                          ;;"16ykn9i4zb143ikdricyzhiinjd2jk7sjwm46l2jhv8pn7xjz2g1"
                          ;;"0rj2gx3amw2abyzd83bgyy4983k6gz13dakz5pkic3q3wkjh9iw6"
-                         ))))
-             (build-system node-build-system)
+                         ))
+                       (modules '((guix build utils)))
+                       (snippet
+                        '(begin
+                           (delete-file "src/narwhal/coffee-script.coffee")
+                           (substitute* '("src/command_line.coffee" "src/grammar.coffee")
+                             (("require 'posix'")
+                              "require 'fs'")
+                             (("posix.cat\\(")
+                              "posix.readFile(")
+                             (("\\).addCallback \\(")
+                              " , (err, ")
+                             (("    compile_scripts\\(\\)")
+                              "    compile_scripts())")
+                             (("posix.write\\(fd, js\\)")
+                              "posix.write(fd, js))")
+                             ))
+                        )))
              (arguments
               `(#:tests? #f
                 #:global? #t
+                #:node ,node-0.1
                 #:phases
                 (modify-phases %standard-phases
-                  (add-after 'unpack 'remove-narwhal-support
-                    (lambda _
-                      (delete-file "src/narwhal/coffee-script.coffee")
-                      #t))
+                  ;;(add-after 'unpack 'remove-narwhal-support
+                  ;;(lambda _
+                  ;;(delete-file "src/narwhal/coffee-script.coffee")
+                  ;;#t))
                   ,(coffee-script-build-helper-backport '("bin/node_coffee"))
                   ,(coffee-script-build-helper-generated-files "lib/coffee_script")
-                  ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script") 
-                  ,(coffee-script-build-helper-build "lib/coffee_script"))))
-             (inputs
-              `(("node" ,node)))
+                  ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script")
+                  ,(coffee-script-build-helper-build "bin/node_coffee" "lib/coffee_script"))))
+             ;; (build-system node-build-system)
+             ;; (arguments
+             ;;  `(#:tests? #f
+             ;;    #:global? #t
+             ;;    #:phases
+             ;;    (modify-phases %standard-phases
+             ;;      (add-after 'unpack 'remove-narwhal-support
+             ;;        (lambda _
+             ;;          (delete-file "src/narwhal/coffee-script.coffee")
+             ;;          #t))
+             ;;      ,(coffee-script-build-helper-backport '("bin/node_coffee"))
+             ;;      ,(coffee-script-build-helper-generated-files "lib/coffee_script")
+             ;;      ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script") 
+             ;;      ,(coffee-script-build-helper-build "lib/coffee_script"))))
+             ;; (inputs
+             ;;  `(("node" ,node-0.1)))
              (native-inputs
-              `(("coffee-script" ,coffee-script-yolo)
-                ("ruby" ,ruby))))))
+              `(("coffee-script" ,coffee-script-boot1)
+                ("ruby" ,ruby)))
+             ))
+  )
 
 
 

@@ -254,6 +254,10 @@ devices.")
        ("linux-headers" ,linux-libre-headers)
        ("util-linux" ,util-linux)
        ("pkg-config" ,pkg-config)))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
     (inputs
      `(("openssl" ,tls:openssl)
        ("c-ares" ,c-ares)))))
@@ -322,23 +326,135 @@ devices.")
                (format #t "configure flags: ~s~%" flags)
                (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
                (zero? (apply system*
-                             "./configure" flags))))))))))
+                             "./configure" flags))))))))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    ))
 
-(define-public node-0.1
+(define-public node-0.try
   (package (inherit node)
-    (version "0.1.33")
+           (version "0.1.28")
     (source (origin
               (method url-fetch)
               (uri (string-append "http://nodejs.org/dist/v" version
                                   "/node-v" version ".tar.gz"))
               (sha256
                (base32
-                "19y5211rhj0waisfi0yc7j86psykkc49qym78cxayaxjmkdv2paa"))))
+                "0schdkjdmjv73k2kw3l3v5yrqxwz1wppqjam2fdn4d3d4kasiy06"))))
     (arguments
-     '(#:make-flags (list (string-append "CXXFLAGS=-I"
+     '(#:make-flags (list (string-append "CXXFLAGS=-g -I"
                                          (assoc-ref %build-inputs "linux-headers")
                                          "/include")
-                          (string-append "CFLAGS=-I"
+                          (string-append "CFLAGS=-g -I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include"))
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'patch-files
+
+           (lambda* (#:key inputs #:allow-other-keys)
+             ;; XXX: https://groups.google.com/forum/#!topic/v8-dev/n5dTMV1zb04
+             ;; TODO: extract patch file?
+             ;; (substitute* '("deps/v8/src/utils.h")
+             ;;   (("while \\(dest <= limit - kStepSize\\) \\{")
+             ;;    "ASSERT(dest + kStepSize > dest);  // Check for overflow.
+             ;;     while (dest + kStepSize <= limit) {"))
+             (substitute* '("wscript")
+               (("snapshot=on")
+                ""))
+             ;; XXX: V8 engine breaks on -O3.  
+             (substitute* '("deps/v8/SConstruct")
+               (("'-O3'")
+                "'-O2'"))
+             (substitute* '("src/node.cc")
+               (("f->Call\\(global, 1, &Local<Value>::New\\(process\\)\\);")
+                "Local<Value> args[1] = { Local<Value>::New(process) };
+                 f->Call(global, 1, args);"))
+             ;; XXX: The configure script does not support the
+             ;; --without-snapshot flaq, but this can be patched in manually
+             ;; (substitute* '("wscript")
+             ;;   (("snapshot=on")
+             ;;    ""))
+             ;; XXX: Symbols were used before they were included
+             (substitute* '("deps/v8/src/globals.h")
+               (("namespace v8 \\{")
+                "#include <cstring>\nnamespace v8 {"))
+             ;; XXX: Old sources made use of a more permissive compiler, but
+             ;; for more recent versions of gcc, we need to properly designate
+             ;; the namespace of functions we call.
+             (substitute* '("deps/v8/src/objects.cc")
+               (("int entry = FindEntry\\(key\\);")
+               "int entry = this->FindEntry(key);")
+               )
+             (substitute* '("deps/v8/src/objects.h")
+               (("set\\(HashTable")
+                "this->set(HashTable")
+               (("get\\(HashTable")
+                "this->get(HashTable")
+               (("fast_set\\(this, kNextEnumerationIndexIndex")
+               "this->fast_set(this, kNextEnumerationIndexIndex")
+             )
+             (substitute* '("deps/v8/src/utils.h")
+               (("set_start\\(buffer_\\);")
+                "this->set_start(buffer_);"))
+             ;; FIXME: These tests fail in the build container, but they don't
+             ;; seem to be indicative of real problems in practice.
+             (for-each delete-file
+                       '(
+                         "test/mjsunit/test-tcp-tls.js"
+                         "test/mjsunit/test-keep-alive.js"
+                         "test/mjsunit/test-remote-module-loading.js"
+                         "test/mjsunit/test-exec.js"
+                         ;""
+                         ;;"test/simple/test-remote-module-loading.js"
+                         ;;"test/simple/test-exec.js"
+                         ;;"test/simple/test-tcp-binary.js" 
+                         ;;"test/simple/test-fs-realpath.js"
+                         ;;"test/simple/test-child-process-env.js"
+                         ))
+             #t))
+         (replace 'configure
+           ;; Node's configure script is actually a python script, so we can't
+           ;; run it with the standard configure flags.
+           (lambda* (#:key outputs (configure-flags '()) inputs
+                     #:allow-other-keys)
+             (let* ((prefix (assoc-ref outputs "out"))
+                    (flags
+                     (cons (string-append "--prefix=" prefix)
+                           configure-flags)))
+               (format #t "build directory: ~s~%" (getcwd))
+               (format #t "configure flags: ~s~%" flags)
+               (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+               (zero? (apply system*
+                             "./configure" flags))))))))
+    (native-inputs
+     `(("python" ,python-2)
+       ("linux-headers" ,linux-libre-headers)))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    (outputs '("out" "debug"))
+    (inputs
+     `(("gnutls" ,tls:gnutls)))))
+(define-public node-0.x
+  (package (inherit node)
+    (version "0.1.32")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "http://nodejs.org/dist/v" version
+                                  "/node-v" version ".tar.gz"))
+              (sha256
+               (base32
+                "0gppaz5qflnjvaflndard93vcjf6y2rqr6y54hyxy59c3zgpbnhz"))))
+    (arguments
+     '(#:make-flags (list (string-append "CXXFLAGS=-g -I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include")
+                          (string-append "CFLAGS=-g -I"
                                          (assoc-ref %build-inputs "linux-headers")
                                          "/include"))
        #:test-target "test"
@@ -355,6 +471,101 @@ devices.")
              (substitute* '("deps/v8/src/globals.h")
                (("namespace v8 \\{")
                 "#include <cstring>\nnamespace v8 {"))
+             ;; XXX: Old sources made use of a more permissive compiler, but
+             ;; for more recent versions of gcc, we need to properly designate
+             ;; the namespace of functions we call.
+             (substitute* '("deps/v8/src/objects.cc")
+               (("int entry = FindEntry\\(key\\);")
+               "int entry = this->FindEntry(key);")
+               )
+             (substitute* '("deps/v8/src/objects.h")
+               (("set\\(HashTable")
+                "this->set(HashTable")
+               (("get\\(HashTable")
+                "this->get(HashTable")
+               (("fast_set\\(this, kNextEnumerationIndexIndex")
+                "this->fast_set(this, kNextEnumerationIndexIndex"))
+             (substitute* '("deps/v8/src/utils.h")
+               (("set_start\\(buffer_\\);")
+                "this->set_start(buffer_);"))
+             ;; FIXME: These tests fail in the build container, but they don't
+             ;; seem to be indicative of real problems in practice.
+             (for-each delete-file
+                       '("test/simple/test-remote-module-loading.js"
+                         "test/simple/test-exec.js"
+                         "test/simple/test-tcp-binary.js" 
+                         "test/simple/test-fs-realpath.js"
+                         "test/simple/test-child-process-env.js"))
+             #t))
+         (replace 'configure
+           ;; Node's configure script is actually a python script, so we can't
+           ;; run it with the standard configure flags.
+           (lambda* (#:key outputs (configure-flags '()) inputs
+                     #:allow-other-keys)
+             (let* ((prefix (assoc-ref outputs "out"))
+                    (flags
+                     (cons (string-append "--prefix=" prefix)
+                           configure-flags)))
+               (format #t "build directory: ~s~%" (getcwd))
+               (format #t "configure flags: ~s~%" flags)
+               (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+               (zero? (apply system*
+                             "./configure" flags))))))))
+    (native-inputs
+     `(("python" ,python-2)
+       ("linux-headers" ,linux-libre-headers)))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    (outputs '("out" "debug"))
+    (inputs
+     `(("gnutls" ,tls:gnutls)))))
+
+(define-public node-0.1
+  (package (inherit node)
+    (version "0.1.33")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "http://nodejs.org/dist/v" version
+                                  "/node-v" version ".tar.gz"))
+              (sha256
+               (base32
+                "19y5211rhj0waisfi0yc7j86psykkc49qym78cxayaxjmkdv2paa"))))
+    (arguments
+     '(#:make-flags (list (string-append "CXXFLAGS=-g -O0 -I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include")
+                          (string-append "CFLAGS=-g -O0 -I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include"))
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'patch-files
+           (lambda* (#:key inputs #:allow-other-keys)
+             ;; XXX: The configure script does not support the
+             ;; --without-snapshot flaq, but this can be patched in manually
+             ;;-    while (dest <= limit - kStepSize) {
+             ;;+    ASSERT(dest + kStepSize > dest);  // Check for overflow.
+             ;;+    while (dest + kStepSize <= limit) {
+             (substitute* '("deps/v8/src/utils.h")
+               (("while \\(dest <= limit - kStepSize\\) \\{")
+                "ASSERT(dest + kStepSize > dest);  // Check for overflow.
+                 while (dest + kStepSize <= limit) {"))
+             (substitute* '("wscript")
+               (("snapshot=on")
+                "")
+               (("-DNDEBUG', '-O3'")
+                "-DDEBUG', '-O0'"
+                ))
+             (substitute* '("deps/v8/SConstruct")
+               (("'-O3'")
+                "'-O0'"))
+             ;; XXX: Symbols were used before they were included
+             ;;(substitute* '("deps/v8/src/globals.h")
+               ;;(("namespace v8 \\{")
+                ;;"#include <cstring>\nnamespace v8 {"))
              ;; XXX: Old sources made use of a more permissive compiler, but
              ;; for more recent versions of gcc, we need to properly designate
              ;; the namespace of functions we call.
@@ -395,5 +606,10 @@ devices.")
     (native-inputs
      `(("python" ,python-2)
        ("linux-headers" ,linux-libre-headers)))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    (outputs '("out" "debug"))
     (inputs
      `(("gnutls" ,tls:gnutls)))))
