@@ -442,14 +442,14 @@ devices.")
      `(("gnutls" ,tls:gnutls)))))
 (define-public node-0.x
   (package (inherit node)
-    (version "0.1.32")
+    (version "0.1.29")
     (source (origin
               (method url-fetch)
               (uri (string-append "http://nodejs.org/dist/v" version
                                   "/node-v" version ".tar.gz"))
               (sha256
                (base32
-                "0gppaz5qflnjvaflndard93vcjf6y2rqr6y54hyxy59c3zgpbnhz"))))
+                "01mvx5pizzarndzlxp7jvclff9217xb9b0nkyx6ng7yqzgkdwvdm"))))
     (arguments
      '(#:make-flags (list (string-append "CXXFLAGS=-g -I"
                                          (assoc-ref %build-inputs "linux-headers")
@@ -467,6 +467,9 @@ devices.")
              (substitute* '("wscript")
                (("snapshot=on")
                 ""))
+             (substitute* '("deps/v8/SConstruct")
+               (("'-O3'")
+                "'-O2'"))
              ;; XXX: Symbols were used before they were included
              (substitute* '("deps/v8/src/globals.h")
                (("namespace v8 \\{")
@@ -491,11 +494,18 @@ devices.")
              ;; FIXME: These tests fail in the build container, but they don't
              ;; seem to be indicative of real problems in practice.
              (for-each delete-file
-                       '("test/simple/test-remote-module-loading.js"
-                         "test/simple/test-exec.js"
-                         "test/simple/test-tcp-binary.js" 
-                         "test/simple/test-fs-realpath.js"
-                         "test/simple/test-child-process-env.js"))
+                       '(
+
+                         "test/mjsunit/test-tcp-tls.js"
+                         "test/mjsunit/test-keep-alive.js"
+                         "test/mjsunit/test-remote-module-loading.js"
+                         "test/mjsunit/test-exec.js"
+                         ;;"test/simple/test-remote-module-loading.js"
+                         ;;"test/simple/test-exec.js"
+                         ;;"test/simple/test-tcp-binary.js" 
+                         ;;"test/simple/test-fs-realpath.js"
+                         ;;"test/simple/test-child-process-env.js"
+                         ))
              #t))
          (replace 'configure
            ;; Node's configure script is actually a python script, so we can't
@@ -533,10 +543,10 @@ devices.")
                (base32
                 "19y5211rhj0waisfi0yc7j86psykkc49qym78cxayaxjmkdv2paa"))))
     (arguments
-     '(#:make-flags (list (string-append "CXXFLAGS=-g -O0 -I"
+     '(#:make-flags (list (string-append "CXXFLAGS=-g -I"
                                          (assoc-ref %build-inputs "linux-headers")
                                          "/include")
-                          (string-append "CFLAGS=-g -O0 -I"
+                          (string-append "CFLAGS=-g -I"
                                          (assoc-ref %build-inputs "linux-headers")
                                          "/include"))
        #:test-target "test"
@@ -556,12 +566,12 @@ devices.")
              (substitute* '("wscript")
                (("snapshot=on")
                 "")
-               (("-DNDEBUG', '-O3'")
-                "-DDEBUG', '-O0'"
-                ))
+               ;;(("-DNDEBUG', '-O3'")
+                ;;"-DDEBUG', '-O0'")
+               )
              (substitute* '("deps/v8/SConstruct")
                (("'-O3'")
-                "'-O0'"))
+                "'-O2'"))
              ;; XXX: Symbols were used before they were included
              ;;(substitute* '("deps/v8/src/globals.h")
                ;;(("namespace v8 \\{")
