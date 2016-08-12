@@ -409,6 +409,165 @@ devices.")
             (files '("lib/node_modules")))))
     ))
 
+(define-public node-0.1.95
+  (package (inherit node-0.2)
+    (version "0.1.95")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "http://nodejs.org/dist/v" version
+                                  "/node-v" version ".tar.gz"))
+              (sha256
+               (base32
+                "1f3mlfppishnd8z1pnr3jidmpj6waw3kz0cp5x94hzzw0mw4f5fj"))))
+    (arguments
+     '(#:configure-flags `(;;"--without-snapshot"
+                           ;;"--shared-cares"
+                           )
+       #:make-flags (list (string-append "CXXFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include")
+                          (string-append "CFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include"))
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'patch-files
+           (lambda* (#:key inputs #:allow-other-keys)
+             (substitute* '("wscript")
+               (("snapshot=on")
+                ""))
+             ;; XXX: V8 engine breaks on -O3.  
+             (substitute* '("deps/v8/SConstruct")
+               (("'-O3'")
+                "'-O2'"))
+             ;; XXX: Old sources made use of a more permissive compiler, but
+             ;; for more recent versions of gcc, we need to properly designate
+             ;; the namespace of functions we call.
+
+             (substitute* '("deps/v8/src/objects.cc")
+               (("int entry = FindEntry\\(key\\);")
+                "int entry = this->FindEntry(key);")
+               )
+
+             ;; FIXME: These tests fail in the build container, but they don't
+             ;; seem to be indicative of real problems in practice.
+             (for-each delete-file
+                       '(
+                         "test/simple/test-http-304.js"
+                         "test/simple/test-c-ares.js"
+                         "test/simple/test-stdout-to-file.js"
+                         "test/simple/test-error-reporting.js"
+                         ;;"test/simple/test-child-process-deprecated-api.js"
+                         "test/simple/test-stdin-from-file.js"
+                         "test/simple/test-pipe-head.js"
+                         "test/simple/test-http-full-response.js"
+                         ;;"test/simple/test-child-process-exec-env.js"
+                         ;;"test/simple/test-child-process-exec-cwd.js"
+                         "test/simple/test-fs-realpath.js"
+                         ;;"test/simple/test-child-process-cwd.js"
+                         "test/simple/test-exec.js"
+                         ;;"test/simple/test-child-process-custom-fds.js"
+                         "test/simple/test-child-process-env.js"
+                         ;;"test/simple/test-c-ares.js"
+                         ;;"test/simple/test-fs-realpath.js"
+                         ;;"test/simple/test-remote-module-loading.js"
+                         ;;"test/simple/test-exec.js"
+                         ;;"test/simple/test-child-process-env.js"
+                         ))
+             #t))
+         (replace 'configure
+           ;; Node's configure script is actually a python script, so we can't
+           ;; run it with bash.
+           (lambda* (#:key outputs (configure-flags '()) inputs
+                     #:allow-other-keys)
+             (let* ((prefix (assoc-ref outputs "out"))
+                    (flags
+                     (cons (string-append "--prefix=" prefix)
+                           configure-flags)))
+               (format #t "build directory: ~s~%" (getcwd))
+               (format #t "configure flags: ~s~%" flags)
+               (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+               (zero? (apply system*
+                             "./configure" flags))))))))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    ))
+
+(define-public node-0.1.90
+  (package (inherit node-0.2)
+    (version "0.1.90")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "http://nodejs.org/dist/v" version
+                                  "/node-v" version ".tar.gz"))
+              (sha256
+               (base32
+                "1hwm8shkbarxf677hxdx72n8rkwcbar6iwkgvra9l125pvv4gg8d"))))
+    (arguments
+     '(#:configure-flags `(;;"--without-snapshot"
+                           ;;"--shared-cares"
+                           )
+       #:make-flags (list (string-append "CXXFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include")
+                          (string-append "CFLAGS=-I"
+                                         (assoc-ref %build-inputs "linux-headers")
+                                         "/include"))
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'patch-files
+           (lambda* (#:key inputs #:allow-other-keys)
+             (substitute* '("wscript")
+               (("snapshot=on")
+                ""))
+             ;; XXX: V8 engine breaks on -O3.  
+             (substitute* '("deps/v8/SConstruct")
+               (("'-O3'")
+                "'-O2'"))
+             ;; XXX: Old sources made use of a more permissive compiler, but
+             ;; for more recent versions of gcc, we need to properly designate
+             ;; the namespace of functions we call.
+
+             (substitute* '("deps/v8/src/objects.cc")
+               (("int entry = FindEntry\\(key\\);")
+                "int entry = this->FindEntry(key);")
+               )
+
+             ;; FIXME: These tests fail in the build container, but they don't
+             ;; seem to be indicative of real problems in practice.
+             (for-each delete-file
+                       '(
+                         "test/simple/test-c-ares.js"
+                         "test/simple/test-fs-realpath.js"
+                         "test/simple/test-remote-module-loading.js"
+                         "test/simple/test-exec.js"
+                         "test/simple/test-child-process-env.js"))
+             #t))
+         (replace 'configure
+           ;; Node's configure script is actually a python script, so we can't
+           ;; run it with bash.
+           (lambda* (#:key outputs (configure-flags '()) inputs
+                     #:allow-other-keys)
+             (let* ((prefix (assoc-ref outputs "out"))
+                    (flags
+                     (cons (string-append "--prefix=" prefix)
+                           configure-flags)))
+               (format #t "build directory: ~s~%" (getcwd))
+               (format #t "configure flags: ~s~%" flags)
+               (setenv "CC" (string-append (assoc-ref inputs "gcc") "/bin/gcc"))
+               (zero? (apply system*
+                             "./configure" flags))))))))
+    (native-search-paths
+     (list (search-path-specification
+            (variable "NODE_PATH")
+            (files '("lib/node_modules")))))
+    ))
+
+
 (define-public node-0.1.28
   (package (inherit node)
            (version "0.1.28")
