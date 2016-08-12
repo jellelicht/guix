@@ -17,7 +17,6 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (gnu packages coffee-script)
-  ;;#:use-module ((guix licenses) #:select (expat))
   #:use-module ((guix licenses) #:select (expat))
   #:use-module (guix packages)
   #:use-module (guix download)
@@ -40,16 +39,13 @@
               (lambda* (#:key inputs outputs #:allow-other-keys)
                 (let* ((out (assoc-ref outputs "out"))
                        (bin (string-append out "/" ,file))
-                       (dir (string-append out "/lib/node_modules/coffee-script/" ,lib-directory)))
-                  (display "  HELLO>   ")
-                  (display ,lib-directory)
-                  (display "  HELLO2>   ")
-                  (display dir)
-                  (display "  HELLO3>   ")
-                  (display (getenv "NODE_PATH"))
+                       (dir (string-append out "/lib/node_modules/coffee-script/" ,lib-directory))
+                       ;; FIXME: Use (bootstrapped) jison
+                       (jison-vendor (string-append
+                                      out
+                                      "/lib/node_modules/coffee-script/vendor/jison/lib")))
                   (wrap-program bin
-                    `("NODE_PATH" ":" prefix (,dir ;,(getenv "NODE_PATH")
-                                                   )))
+                    `("NODE_PATH" ":" prefix (,dir ,jison-vendor)))
                   #t))))
 
 
@@ -60,7 +56,7 @@
                     ;'("bin/node_coffee" ;"bin/cake"
                     ;           "bin/coffee")
                   (("#!/usr/bin/env node --") "#!/usr/bin/env node")
-                  (("require\\.paths.*$") "")
+                  (("require\\.paths.*$") "") ;;to prevent unshift funny business
                   ))))
 
 (define (coffee-script-build-helper-generated-files dir)
@@ -72,22 +68,22 @@
                             (format #t "deleting generated JavaScript file '~a'~%" file)
                             (delete-file file))
                           (find-files ,dir ".*\\.js$"))
+                ;(rename-file "vendor" "node_modules")
+                ;;(for-each (lambda (file)
+                            ;;(format #t "deleting vendored  file '~a'~%" file)
+                            ;;(delete-file file))
+                          ;;(find-files "./vendor" ".*"))
                 (copy-file (string-append ,dir "/parser.js.keep") (string-append ,dir "/parser.js")))))
 
-(define (coffee-script-build-helper-build cs-file target-dir)
+(define* (coffee-script-build-helper-build cs-file target-dir #:optional (flags #f))
   `(replace 'build
            (lambda* (#:key inputs #:allow-other-keys)
              (let* ((cs (assoc-ref inputs "coffee-script"))
                    (coffee (string-append cs "/" ,cs-file)))
-                                        ;(setenv "NODE_PATH"
-                                        ;(string-append
-                                        ;(getenv "NODE_PATH")
-                                        ;":" (assoc-ref outputs "out")
-                                        ;"/lib/python"
-                                        ;(string-take (string-take-right
-                                        ;(assoc-ref inputs "python") 5) 3)
-                                        ;"/site-packages"))
-               (zero? (apply system* coffee "-o" ,target-dir (find-files "src" ".*\\.coffee$")))))))
+               ,(if flags
+                    `(zero? (apply system* coffee ,flags "-o" ,target-dir (find-files "src" ".*\\.coffee$")))
+                    `(zero? (apply system* coffee "-o" ,target-dir (find-files "src" ".*\\.coffee$")))
+                   )))))
 
 
 (define-public coffee-script-boot0
@@ -161,15 +157,10 @@ saying it. ")
 
 (define-public coffee-script-boot1
   (let ((commit
-         "7667e16732268944232d31cea6a201698ce0661a"
-         ;"e4bb6c91e70cd8386d76040d65e0669dd6d9a255"
-         ;;"48c501a7a28b9da3681151fd30eb139ea475f853"
-         ;"2d0ad73af815b2a833277741c690aea0c2ca877c"
-         ;;"fa63288f524353bcb037252d57612e240cb5489c"
-         ))
+         "e4bb6c91e70cd8386d76040d65e0669dd6d9a255"))
     (package (inherit coffee-script-boot0)
              (name "coffee-script-boot1")
-             (version (string-append "0.5.0." (string-take commit 7)))
+             (version (string-append "0.3.2." (string-take commit 7)))
              (source (origin
                        (method git-fetch)
                        (uri (git-reference
@@ -177,65 +168,37 @@ saying it. ")
                              (commit commit)))
                        (sha256
                         (base32
-                         ;;"swag"
-                                        ;"1cr7x5mvjjl7pl7cs96khxijbww4fk15v287sx3mazqx5glbzx64"
-                         "0qq5p8k9yb8dx66lffjnirfb6hkv8hch82myidxcaxavi9dgl4kq"
-                         ;;"0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"
-                         ;;"16ykn9i4zb143ikdricyzhiinjd2jk7sjwm46l2jhv8pn7xjz2g1"
-                         ;;"0rj2gx3amw2abyzd83bgyy4983k6gz13dakz5pkic3q3wkjh9iw6"
-                         ))
+                         "0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"))
                        (modules '((guix build utils)))
                        (snippet
                         '(begin
                            (delete-file "src/narwhal/coffee-script.coffee")
-                           ;; (substitute* '("src/command_line.coffee" "src/grammar.coffee")
-                           ;;   (("require 'posix'")
-                           ;;    "require 'fs'")
-                           ;;   (("posix.cat\\(")
-                           ;;    "posix.readFile(")
-                           ;;   (("\\).addCallback \\(")
-                           ;;    " , (err, ")
-                           ;;   (("    compile_scripts\\(\\)")
-                           ;;    "    compile_scripts())")
-                           ;;   (("posix.write\\(fd, js\\)")
-                           ;;    "posix.write(fd, js))")
-                           ;;   )
-                           )
+                           (substitute* "src/command_line.coffee"
+                             (("fs\\.cat")
+                              "fs.readFile")))
                         )))
              (build-system node-build-system)
              (arguments
               `(#:tests? #f
                 #:global? #t
-                #:node ,node-0.try
+                #:node ,node-0.1.29
                 #:phases
                 (modify-phases %standard-phases
-                  ;;(add-after 'unpack 'remove-narwhal-support
-                    ;;(lambda _
-                      ;;(delete-file "src/narwhal/coffee-script.coffee")
-                      ;;#t))
-                  ,(coffee-script-build-helper-backport '("bin/node_coffee"))
+                  ;;,(coffee-script-build-helper-backport '("bin/node_coffee"))
                   ,(coffee-script-build-helper-generated-files "lib/coffee_script")
                   ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script") 
                   ,(coffee-script-build-helper-build "bin/coffee" "lib/coffee_script"))))
              (inputs
-              `(("node" ,node-0.try)))
+              `(("node" ,node-0.1.29)))
              (native-inputs
               `(("coffee-script" ,coffee-script-yolo)
                 ("ruby" ,ruby))))))
 
-
-;; at least further than fbfa12c
 (define-public coffee-script-boot2
-  (let ((commit
-         "4ea8be8e0be5521c0b94a7e6031c2c3a60725d5a"
-         ;"e4bb6c91e70cd8386d76040d65e0669dd6d9a255"
-         ;;"48c501a7a28b9da3681151fd30eb139ea475f853"
-         ;"2d0ad73af815b2a833277741c690aea0c2ca877c"
-         ;;"fa63288f524353bcb037252d57612e240cb5489c"
-         ))
+  (let ((commit "4ec7514d1056ff05b56ada79ba66ab2876a948e0"))
     (package (inherit coffee-script-boot1)
              (name "coffee-script-boot2")
-             (version (string-append "0.5.0." (string-take commit 7)))
+             (version (string-append "0.5.2." (string-take commit 7)))
              (source (origin
                        (method git-fetch)
                        (uri (git-reference
@@ -243,65 +206,408 @@ saying it. ")
                              (commit commit)))
                        (sha256
                         (base32
-                         ;;"swag"
-                                        ;"1cr7x5mvjjl7pl7cs96khxijbww4fk15v287sx3mazqx5glbzx64"
-                         ;;"0qq10i2znsa6xjp6p465qhyr3d2g4dr2zkph5jagnvgpnbgajpfm"
-                         "0qq5p8k9yb8dx66lffjnirfb6hkv8hch82myidxcaxavi9dgl4kq"
-                         ;;"16ykn9i4zb143ikdricyzhiinjd2jk7sjwm46l2jhv8pn7xjz2g1"
-                         ;;"0rj2gx3amw2abyzd83bgyy4983k6gz13dakz5pkic3q3wkjh9iw6"
-                         ))
+                         "08cnyj62qr7vn08kqayn3krpp224vs5856g2r556mbn7mg9018kk"))
                        (modules '((guix build utils)))
                        (snippet
                         '(begin
-                           (delete-file "src/narwhal/coffee-script.coffee")
-                           (substitute* '("src/command_line.coffee" "src/grammar.coffee")
-                             (("require 'posix'")
-                              "require 'fs'")
-                             (("posix.cat\\(")
-                              "posix.readFile(")
-                             (("\\).addCallback \\(")
-                              " , (err, ")
-                             (("    compile_scripts\\(\\)")
-                              "    compile_scripts())")
-                             (("posix.write\\(fd, js\\)")
-                              "posix.write(fd, js))")
-                             ))
-                        )))
+                           (delete-file "src/narwhal.coffee")))
+                       ))
              (arguments
               `(#:tests? #f
                 #:global? #t
-                #:node ,node-0.1
+                #:node ,node-0.1.30
                 #:phases
                 (modify-phases %standard-phases
-                  ;;(add-after 'unpack 'remove-narwhal-support
-                  ;;(lambda _
-                  ;;(delete-file "src/narwhal/coffee-script.coffee")
-                  ;;#t))
-                  ,(coffee-script-build-helper-backport '("bin/node_coffee"))
-                  ,(coffee-script-build-helper-generated-files "lib/coffee_script")
-                  ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script")
-                  ,(coffee-script-build-helper-build "bin/node_coffee" "lib/coffee_script"))))
-             ;; (build-system node-build-system)
+                  ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                  ,(coffee-script-build-helper-generated-files "lib")
+                  ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                  ,(coffee-script-build-helper-build "bin/node_coffee" "lib"))))
+             (inputs
+              `(("node" ,node-0.1.30)))
+             (native-inputs
+              `(("coffee-script" ,coffee-script-boot1)
+                ;;("ruby" ,ruby)
+                )))))
+
+(define-public coffee-script-0.5.2
+  (package (inherit coffee-script-boot2)
+           (name "coffee-script")
+           (version (string-append "0.5.2"))
+           (source (origin
+                     (method url-fetch)
+                     (uri (string-append "https://github.com/jashkenas/coffeescript/archive/"
+                                         version ".tar.gz"))
+                     (sha256
+                      (base32
+                       ;;"05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
+                       "0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"
+                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
+                       ))
+                     ))
+           ;; (arguments
+           ;;  `(#:tests? #f
+           ;;    #:global? #t
+           ;;    #:node ,node-0.1.31
+           ;;    #:phases
+           ;;    (modify-phases %standard-phases
+           ;;      ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+           ;;      ,(coffee-script-build-helper-generated-files "lib")
+           ;;      ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+           ;;      ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
+           ;;      )))
+           ;; (inputs
+           ;;  `(("node" ,node-0.1.31)))
+           (native-inputs
+            `(("coffee-script" ,coffee-script-boot1)
+             ;; ("ruby" ,ruby)
+              ))))
+
+(define-public coffee-script-between
+  (let ((commit
+         ;"44398d044ffae2465be54715da59625f1748b673"
+         "1c7e4c4203fef1ae8f6ae58ddaefdd9e5801226a"
+         ;;"fe7d5dfd1951bceaa440ab1ba27704759c078124"
+         ;;"965034e16ec43b3462f76f6046e424aa869516d2"
+         ;;"b4ea43cbd059ababdc8351f8a3d3eec3993fb453"
+        ;; "4906cf1aff9dfe1e273ed2922ae5b9f43c01a17e"
+         ))
+    (package (inherit coffee-script-0.5.2)
+             (name "coffee-script-between")
+             (version (string-append "0.5.2." (string-take commit 7)))
+             (source (origin
+                       (method git-fetch)
+                       (uri (git-reference
+                             (url "https://github.com/jashkenas/coffeescript.git")
+                             (commit commit)))
+                       (sha256
+                        (base32
+                         "00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
+                         ))
+                       ))
+             (arguments
+              `(#:tests? #f
+                #:global? #t
+                #:node ,node-0.1.30
+                #:phases
+                (modify-phases %standard-phases
+                  ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                  ,(coffee-script-build-helper-generated-files "lib")
+                  ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                  ,(coffee-script-build-helper-build "bin/coffee" "lib")
+                  )))
+             ;; (inputs
+             ;;  `(("node" ,node-0.1.31)))
+             (native-inputs
+              `(("coffee-script" ,coffee-script-0.5.2)
+               ;; ("ruby" ,ruby)
+                )))))
+
+
+(define-public coffee-script-0.5.3
+  (package (inherit coffee-script-0.5.2)
+           (name "coffee-script")
+           (version (string-append "0.5.3"))
+           (source (origin
+                     (method url-fetch)
+                     (uri (string-append "https://github.com/jashkenas/coffeescript/archive/"
+                                         version ".tar.gz"))
+                     (sha256
+                      (base32
+                       ;;"05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
+                       "0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
+                       ;;"0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"
+                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
+                       ))
+                     (modules '((guix build utils)))
+                     (snippet
+                      '(begin
+                         (delete-file "src/narwhal.coffee")))
+                     ))
+           (arguments
+            `(#:tests? #f
+              #:global? #t
+              #:node ,node-0.1.30
+              #:phases
+              (modify-phases %standard-phases
+                ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                ,(coffee-script-build-helper-generated-files "lib")
+                ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c"))))
+           (native-inputs
+            `(("coffee-script" ,coffee-script-boot2)
+              ;; ("ruby" ,ruby)
+              ))
+           ))
+
+
+(define-public coffee-script-test
+  (package (inherit coffee-script-0.5.2)
+           (name "coffee-script-test")
+           (version (string-append "0.5.3"))
+           (source (origin
+                     (method url-fetch)
+                     (uri (string-append "https://github.com/jashkenas/coffeescript/archive/"
+                                         version ".tar.gz"))
+                     (sha256
+                      (base32
+                       ;;"05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
+                       "0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
+                       ;;"0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"
+                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
+                       ))
+                     (modules '((guix build utils)))
+                     (snippet
+                      '(begin
+                         (delete-file "src/narwhal.coffee")))
+                     ))
+           (arguments
+            `(#:tests? #f
+              #:global? #t
+              #:node ,node-0.1.30
+              #:phases
+              (modify-phases %standard-phases
+                ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                ,(coffee-script-build-helper-generated-files "lib")
+                ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c"))))
+           (native-inputs
+            `(("coffee-script" ,coffee-script-0.5.3)
+              ;; ("ruby" ,ruby)
+              ))
+           ))
+
+(define-public coffee-script-0.5.4
+  (package (inherit coffee-script-boot2)
+           (name "coffee-script")
+           (version (string-append "0.5.4"))
+           (source (origin
+                     (method url-fetch)
+                     (uri (string-append "https://github.com/jashkenas/coffeescript/archive/"
+                                         version ".tar.gz"))
+                     (sha256
+                      (base32
+                       "05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
+                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
+                       ))
+                     ))
+           (arguments
+            `(#:tests? #f
+              #:global? #t
+              #:node ,node-0.1.31
+              #:phases
+              (modify-phases %standard-phases
+                ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                ,(coffee-script-build-helper-generated-files "lib")
+                ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
+                )))
+           (inputs
+            `(("node" ,node-0.1.31)))
+           (native-inputs
+            `(("coffee-script" ,coffee-script-0.5.3)
+              ;;("ruby" ,ruby)
+              ))))
+
+(define-public coffee-script-0.5.5
+  (package (inherit coffee-script-0.5.4)
+           (name "coffee-script")
+           (version (string-append "0.5.5"))
+           (source (origin
+                     (method url-fetch)
+                     (uri (string-append "https://github.com/jashkenas/coffeescript/archive/"
+                                         version ".tar.gz"))
+                     (sha256
+                      (base32
+                       "0ddghl4ax704hpzqd94q4s7lyngjmhvqzbki0lz4gc61k3320df3"
+                       ;;"00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
+                       ))
+                     ))
+           (arguments
+            `(#:tests? #f
+              #:global? #t
+              #:node ,node-0.1.31
+              #:phases
+              (modify-phases %standard-phases
+                ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                ,(coffee-script-build-helper-generated-files "lib")
+                ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
+                )))
+           (inputs
+            `(("node" ,node-0.1.31)))
+           (native-inputs
+            `(("coffee-script" ,coffee-script-0.5.4)
+              ;;("ruby" ,ruby)
+              )
+            )))
+
+(define-public coffee-script-boot3
+  (let ((commit
+         ;"44398d044ffae2465be54715da59625f1748b673"
+         ;;"62b2ab29cd1c47c4b8d287c2c08846a0aadb5828"
+         ;"965034e16ec43b3462f76f6046e424aa869516d2"
+         ;;"fe7d5dfd1951bceaa440ab1ba27704759c078124"
+         ;;"c6d7a27"
+         ;"5b3ef78"
+         ;;kj"15b00cb"
+         ;;"4c3b0b9"
+         ;;"b4ea43c"
+         "0834128"
+         ;;"fe7d5dfd1951bceaa440ab1ba27704759c078124"
+         ;;"965034e16ec43b3462f76f6046e424aa869516d2"
+         ;;"b4ea43cbd059ababdc8351f8a3d3eec3993fb453"
+        ;; "4906cf1aff9dfe1e273ed2922ae5b9f43c01a17e"
+         ))
+    (package (inherit coffee-script-0.5.4)
+             (name "coffee-script-boot3")
+             (version (string-append "0.5.4." (string-take commit 7)))
+             (source (origin
+                       (method git-fetch)
+                       (uri (git-reference
+                             (url "https://github.com/jashkenas/coffeescript.git")
+                             (commit commit)))
+                       (sha256
+                        (base32
+                         ;;"0cg7piw4awfqpalzhrg8crj8gmwmn0qxqiizvn5i49m60sy0pwiy"
+                         ;;"0411ildnadhbh7fgri48mprs3p5dzp61x33i8jia32qlg6lixfzc"
+                         ;;"1168p4mxa3sk3b6sgyqfy5pdc0q8va0vcpsq6742ffbsjscsjsf4"
+                         ;;"1pix34ssfclihzgff992jiv80pil0ag8b2gyqvgga33h22hf1wb0";;
+                         ;;"1w1kklan1am9lvlpj0ysjmshhr854rgjnlh4fascfy0qbjy28g9a"
+                         ;;"1ajdl2f0d8a7k0jh7qqrrj9b762isrmyrdi6ygxwck9dk14rpbc7"
+                         ;;"0bawlb577jbck003p3z1bpwsibwk58bkdlssaxdams9binjr0rjd"
+                         "1cc0qd2qs46yrkwmlccy8byslzb9xkjx2knxwmjp2fq8rv06flrk"
+                         ;; "00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
+                         ))
+                       ))
              ;; (arguments
              ;;  `(#:tests? #f
              ;;    #:global? #t
+             ;;    #:node ,node-0.1.31
              ;;    #:phases
              ;;    (modify-phases %standard-phases
-             ;;      (add-after 'unpack 'remove-narwhal-support
-             ;;        (lambda _
-             ;;          (delete-file "src/narwhal/coffee-script.coffee")
-             ;;          #t))
-             ;;      ,(coffee-script-build-helper-backport '("bin/node_coffee"))
-             ;;      ,(coffee-script-build-helper-generated-files "lib/coffee_script")
-             ;;      ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script") 
-             ;;      ,(coffee-script-build-helper-build "lib/coffee_script"))))
+             ;;      ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+             ;;      ,(coffee-script-build-helper-generated-files "lib")
+             ;;      ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+             ;;      ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
+             ;;      )))
              ;; (inputs
-             ;;  `(("node" ,node-0.1)))
+             ;;  `(("node" ,node-0.1.31)))
              (native-inputs
-              `(("coffee-script" ,coffee-script-boot1)
-                ("ruby" ,ruby)))
-             ))
-  )
+              `(("coffee-script" ,coffee-script-0.5.4)
+                ;;("ruby" ,ruby)
+                )))))
+
+(define (coffee-replicate pkg-def key name)
+  (let ((ni (package-native-inputs pkg-def))) 
+    (package (inherit pkg-def)
+             (name name)
+             (native-inputs
+              (cons `(,key ,pkg-def) ni)))))
+
+;; (define (boot4 commit hash)
+;;   (package (inherit coffee-script-boot3)
+;;              (name "coffee-script-boot4")
+;;              (version (string-append "0.5.4." (string-take commit 7)))
+;;              (source (origin
+;;                        (method git-fetch)
+;;                        (uri (git-reference
+;;                              (url "https://github.com/jashkenas/coffeescript.git")
+;;                              (commit commit)))
+;;                        (sha256 (base32 hash))))
+;;              (native-inputs
+;;               `(("coffee-script" ,coffee-script-boot3)
+;;                 ))))
+
+(define (bootstrap prev nname)
+  (lambda (commit hash) 
+    (package (inherit prev)
+             (name nname)
+             (version (string-append "0.5.4." (string-take commit 7)))
+             (source (origin
+                       (method git-fetch)
+                       (uri (git-reference
+                             (url "https://github.com/jashkenas/coffeescript.git")
+                             (commit commit)))
+                       (sha256 (base32 hash))
+                       (file-name (string-append "coffeescript-" version "-checkout"))
+                       ))
+             (native-inputs
+              `(("coffee-script" ,prev)
+                )))))
+
+(define boot4 (bootstrap coffee-script-boot3 "coffee-script-boot4"))
+
+(define-public coffee-script-boot4 (boot4
+                                    "47682de"
+                                    "01r35xfd5mvv66zlm2lmhdj0dfjib58w8nlacyavq4cs6ycskc56"))
+
+(define-public boot4-check (coffee-replicate coffee-script-boot4 "coffee-script" "coffee-script-boot4r" ))
+
+(define boot5 (bootstrap coffee-script-boot4 "coffee-script-boot5"))
+(define-public coffee-script-boot5 (boot5
+                                    "90f2e0d"
+                                    "1j9g35kgcwk6a0p17rxg9p3gw49ch5qx6wj8ypwf0wj419i4msd9"))
+
+(define-public boot5-check (coffee-replicate coffee-script-boot5 "coffee-script" "coffee-script-boot5r" ))
+
+(define boot6 (bootstrap coffee-script-boot5 "coffee-script-boot6"))
+(define-public coffee-script-boot6 (boot6
+                                    "b726416"
+                                    "00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
+                                    ))
+
+(define-public boot6-check (coffee-replicate coffee-script-boot6 "coffee-script" "coffee-script-boot6r" ))
+
+(define boot7 (bootstrap coffee-script-boot6 "coffee-script-boot7"))
+(define-public coffee-script-boot7 (boot7
+                                    "cbfe7f5"
+                                    "1w9ml532nj3i9xklm9klfrwllapck84j5j8v4ymiblh0cg4lbbfm"
+                                    ))
+
+(define-public boot7-check (coffee-replicate coffee-script-boot7 "coffee-script" "coffee-script-boot7r" ))
+
+
+(define boot8 (bootstrap coffee-script-boot7 "coffee-script-boot8"))
+(define-public coffee-script-boot8 (boot8
+                                    "177ec92"
+                                    "02d8xj557nygvax6sv9gmhq8p2kfw7y5w1gfz2wc0imbxlw148dy"
+
+                                    ))
+
+(define-public boot8-check (coffee-replicate coffee-script-boot8 "coffee-script" "coffee-script-boot8r" ))
+
+
+(define boot9 (bootstrap coffee-script-boot8 "coffee-script-boot9"))
+(define-public coffee-script-boot9 (boot9
+                                    "572aa4e"
+                                    "15aw9lbrldwwpyq9fb6s48h0p91w73q67zqlw034i85dr0bxah43"
+                                    ))
+
+(define-public boot9-check (coffee-replicate coffee-script-boot9 "coffee-script" "coffee-script-boot9r" ))
+
+(define boot10 (bootstrap coffee-script-boot9 "coffee-script-boot10"))
+
+(define-public coffee-script-boot10 (boot10
+                                     "c067808"
+                                     "1six1n162xhsjk2h49m4ccw0wma32z2fl4y8pib72s4lk060zcx3"
+
+                                    ;;"065bf54"
+                                    ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                    ))
+
+(define-public boot10-check (coffee-replicate coffee-script-boot10 "coffee-script" "coffee-script-boot10r" ))
+
+
+(define boot11 (bootstrap coffee-script-boot10 "coffee-script-boot11"))
+(define-public coffee-script-boot11 (boot11
+                                     "065bf54"
+                                     "0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     ))
+
+(define-public boot11-check (coffee-replicate coffee-script-boot11 "coffee-script" "coffee-script-boot11r" ))
+
+;; "8317960" <after 11, but only with node 0.1.90
+;; "124wqh0w2i7p8q75qyjylxb4pdhw1z06z5wh6bvjsa47jvlh8d3i"
 
 
 
@@ -327,6 +633,10 @@ saying it. ")
                          (format #t "deleting generated JavaScript file '~a'~%" file)
                          (delete-file file))
                        (find-files "." "(\\.js)$"))
+             (for-each (lambda (file)
+                         (format #t "deleting generated JavaScript file '~a'~%" file)
+                         (delete-file file))
+                       (find-files "./vendor" ".*"))
              #t
              ))
          (replace 'build
