@@ -518,22 +518,37 @@ saying it. ")
 ;;               `(("coffee-script" ,coffee-script-boot3)
 ;;                 ))))
 
-(define (bootstrap prev nname)
+(define* (bootstrap prev nname #:optional (node #f))
   (lambda (commit hash) 
-    (package (inherit prev)
-             (name nname)
-             (version (string-append "0.5.4." (string-take commit 7)))
-             (source (origin
-                       (method git-fetch)
-                       (uri (git-reference
-                             (url "https://github.com/jashkenas/coffeescript.git")
-                             (commit commit)))
-                       (sha256 (base32 hash))
-                       (file-name (string-append "coffeescript-" version "-checkout"))
-                       ))
-             (native-inputs
-              `(("coffee-script" ,prev)
-                )))))
+    (let ((node (or node
+                    (cadr (assoc "node" (package-inputs prev))))))
+      (package (inherit prev)
+               (name nname)
+               (version (string-append "0.5.4." (string-take commit 7)))
+               (source (origin
+                         (method git-fetch)
+                         (uri (git-reference
+                               (url "https://github.com/jashkenas/coffeescript.git")
+                               (commit commit)))
+                         (sha256 (base32 hash))
+                         (file-name (string-append "coffeescript-" version "-checkout"))
+                         ))
+               (arguments
+                `(#:tests? #f
+                  #:global? #t
+                  #:node ,node
+                  #:phases
+                  (modify-phases %standard-phases
+                    ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
+                    ,(coffee-script-build-helper-generated-files "lib")
+                    ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
+                    ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
+                    )))
+               (inputs
+                `(("node" ,node)))
+               (native-inputs
+                `(("coffee-script" ,prev)
+                  ))))))
 
 (define boot4 (bootstrap coffee-script-boot3 "coffee-script-boot4"))
 
@@ -591,20 +606,70 @@ saying it. ")
                                      "c067808"
                                      "1six1n162xhsjk2h49m4ccw0wma32z2fl4y8pib72s4lk060zcx3"
 
-                                    ;;"065bf54"
-                                    ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
                                     ))
 
 (define-public boot10-check (coffee-replicate coffee-script-boot10 "coffee-script" "coffee-script-boot10r" ))
+(define-public boot10-checkd (coffee-replicate boot10-check "coffee-script" "coffee-script-boot10rr" ))
 
 
-(define boot11 (bootstrap coffee-script-boot10 "coffee-script-boot11"))
+(define boot11 (bootstrap coffee-script-boot10 "coffee-script-boot11" node-0.1.90))
 (define-public coffee-script-boot11 (boot11
-                                     "065bf54"
-                                     "0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     ;;"065bf54"
+                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     "8317960"
+                                     "124wqh0w2i7p8q75qyjylxb4pdhw1z06z5wh6bvjsa47jvlh8d3i"
+
                                      ))
 
 (define-public boot11-check (coffee-replicate coffee-script-boot11 "coffee-script" "coffee-script-boot11r" ))
+
+
+(define boot12 (bootstrap coffee-script-boot11 "coffee-script-boot12"))
+(define-public coffee-script-boot12 (boot12
+                                     ;;"065bf54"
+                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     "a894db3"
+                                     "19cbqp8hjcrdlzxrb9lxzx9lz72y8pydz5v8m6731pdvgrr1b75p"
+                                     ))
+
+(define-public boot12-check (coffee-replicate coffee-script-boot12 "coffee-script" "coffee-script-boot12r" ))
+
+
+(define boot13 (bootstrap coffee-script-boot12 "coffee-script-boot13"))
+(define-public coffee-script-boot13 (boot13
+                                     ;;"065bf54"
+                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     "b746c90"
+                                     "1vwnqi1m2h31m03xn7flp949x5wn7dqp3rp31dn05z54i1p3gxpi"
+                                     ))
+
+(define-public boot13-check (coffee-replicate coffee-script-boot13 "coffee-script" "coffee-script-boot13r" ))
+
+
+(define boot14 (bootstrap coffee-script-boot13 "coffee-script-boot14" node-0.1.95))
+(define-public coffee-script-boot14 (boot14
+                                     ;;"065bf54"
+                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     "a133e01"
+                                     "08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
+                                     ))
+
+(define-public boot14-check (coffee-replicate coffee-script-boot14 "coffee-script" "coffee-script-boot14r" ))
+
+
+;; 15 broken: have to split commit
+(define boot15 (bootstrap boot14-check "coffee-script-boot15"))
+(define-public coffee-script-boot15 (boot15
+                                     ;;"065bf54"
+                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                     ;;"a133e01"
+                                     ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
+                                     "0222d90"
+                                     "18rn6s7xxjmsd3696c0gpvm1m028lcmd2kyladybw5las4d3cp0z"
+
+                                     ))
+
+(define-public boot15-check (coffee-replicate coffee-script-boot15 "coffee-script" "coffee-script-boot15r" ))
 
 ;; "8317960" <after 11, but only with node 0.1.90
 ;; "124wqh0w2i7p8q75qyjylxb4pdhw1z06z5wh6bvjsa47jvlh8d3i"
