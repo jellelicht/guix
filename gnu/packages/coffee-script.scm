@@ -83,7 +83,8 @@
                ,(if flags
                     `(zero? (apply system* coffee ,flags "-o" ,target-dir (find-files "src" ".*\\.coffee$")))
                     `(zero? (apply system* coffee "-o" ,target-dir (find-files "src" ".*\\.coffee$")))
-                   )))))
+                    )
+               ))))
 
 
 (define-public coffee-script-boot0
@@ -658,21 +659,128 @@ saying it. ")
 
 
 ;; 15 broken: have to split commit
-(define boot15 (bootstrap boot14-check "coffee-script-boot15"))
-(define-public coffee-script-boot15 (boot15
+(define boot15 (bootstrap coffee-script-boot14 "coffee-script-boot15-temp" node-0.1.98))
+(define coffee-script-boot15-temp (boot15
                                      ;;"065bf54"
                                      ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
                                      ;;"a133e01"
                                      ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
                                      "0222d90"
                                      "18rn6s7xxjmsd3696c0gpvm1m028lcmd2kyladybw5las4d3cp0z"
-
                                      ))
+
+(define-public coffee-script-boot15
+  (let ((support-origin (package-source coffee-script-boot15-temp)))
+    (package (inherit coffee-script-boot15-temp)
+             (name "coffee-script-boot15")
+             (source (origin (inherit support-origin)
+                             (modules '((guix build utils)))
+                             (snippet
+                              '(begin
+                                 (substitute* '("src/lexer.coffee" "src/rewriter.coffee")
+                                   (("loop\n")
+                                    "while true\n")))))))))
 
 (define-public boot15-check (coffee-replicate coffee-script-boot15 "coffee-script" "coffee-script-boot15r" ))
 
-;; "8317960" <after 11, but only with node 0.1.90
-;; "124wqh0w2i7p8q75qyjylxb4pdhw1z06z5wh6bvjsa47jvlh8d3i"
+(define-public coffee-script-boot16
+  (package (inherit coffee-script-boot15-temp)
+           (name "coffee-script-boot16")
+           (native-inputs
+            `(("coffee-script" ,coffee-script-boot15))
+            )))
+
+(define-public boot16-check (coffee-replicate coffee-script-boot16 "coffee-script" "coffee-script-boot16r" ))
+
+
+(define boot17 (bootstrap coffee-script-boot16 "coffee-script-boot17"))
+(define-public coffee-script-boot17 (boot17
+                                   ;;"065bf54"
+                                   ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+                                   ;;"a133e01"
+                                   ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
+                                   "4b284f6"
+                                   "0bgqmhxw0vyhibdgi1pkljdx8qd548jcap9vd1fhrhm4r5kj625w"
+                                   ))
+
+(define-public boot17-check (coffee-replicate coffee-script-boot17 "coffee-script" "coffee-script-boot17r" ))
+
+
+(define-public coffee-script-boot18
+  (let ((support-origin (package-source coffee-script-boot17)))
+    (package (inherit coffee-script-boot17)
+             (name "coffee-script-boot18")
+             (source (origin (inherit support-origin)
+                             (modules '((guix build utils)))
+                             (snippet
+                              '(begin
+                                 (substitute* '("src/lexer.coffee")
+                                   (("^([ ]+)@tokens\\.pop\\(\\)\n" all spaces)
+                                    (string-append spaces "@tokens.pop() if @tag() isnt '@'\n")
+                                    )))))))))
+
+
+;; (define boot18 (bootstrap coffee-script-boot17 "coffee-script-boot18"))
+;; (define-public coffee-script-boot18 (boot18
+;;                                      ;;"065bf54"
+;;                                      ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
+;;                                      ;;"a133e01"
+;;                                      ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
+;;                                      "4b284f6"
+(define boot19 (bootstrap coffee-script-boot18 "coffee-script-boot19"))
+(define-public coffee-script-boot19 (boot19
+                                     "0fcfb80"
+                                     "075xqmyivhfnv4v53jqz6migrxygx4ri4cikgaykvi9gy3dhli78"
+                                     ))
+
+(define-public boot19-check (coffee-replicate coffee-script-boot19 "coffee-script" "coffee-script-boot19r" ))
+
+
+(define boot20 (bootstrap coffee-script-boot19 "coffee-script-boot20"))
+(define-public coffee-script-boot20 (boot20
+                                     "7c426db"
+                                     "0ibsy7lcygvkg0pf1a4g19jh70f5hj8x0jyqybnxc1ix403in1rz"
+                                     ))
+
+(define-public boot20-check (coffee-replicate coffee-script-boot20 "coffee-script" "coffee-script-boot20r" ))
+
+;;
+;;o "NEW Invocation",                         -> $2.newInstance()
+;;o "NEW Value",                              -> (new CallNode($2, [])).newInstance()
+
+(define boot21 (bootstrap coffee-script-boot20 "coffee-script-boot21"))
+
+(define-public coffee-script-boot21
+  (let ((support-origin (package-source coffee-script-boot20)))
+    (package (inherit (boot21
+                       "7d79d73"
+                       "1cppvxnvqip5yy7ms4p98xyydycg0iczshl75rbk1bm58n9cpca4"))
+             (source
+              (origin
+                (inherit support-origin)
+                (modules '((guix build utils)))
+                (snippet
+                 '(begin
+                    (substitute* '("src/grammar.coffee"
+                                   "src/coffee-script.coffee"
+                                   "src/lexer.coffee"
+                                   "src/nodes.coffee")
+                      (("(new [a-zA-Z]+)\n" all identifier)
+                       (string-append identifier "()\n"))
+                      (("\\((new [a-zA-Z]+)\\)" all identifier)
+                       (string-append "(" identifier "())"))
+                      ))))))))
+
+(define-public boot21-check (coffee-replicate coffee-script-boot21 "coffee-script" "coffee-script-boot21r" ))
+
+
+(define boot22 (bootstrap coffee-script-boot21 "coffee-script-boot22"))
+(define-public coffee-script-boot22 (boot22
+                                     "7c426db"
+                                     "0ibsy7lcygvkg0pf1a4g19jh70f5hj8x0jyqybnxc1ix403in1rz"
+                                     ))
+
+(define-public boot22-check (coffee-replicate coffee-script-boot22 "coffee-script" "coffee-script-boot22r" ))
 
 
 
