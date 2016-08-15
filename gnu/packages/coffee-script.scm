@@ -675,10 +675,30 @@ saying it. ")
 (define-public boot24-check (coffee-replicate coffee-script-boot24 "coffee-script" "coffee-script-boot24r" ))
 
 
-;; (define boot25 (bootstrap coffee-script-boot24 "coffee-script-boot25"))
-;; (define coffee-script-boot25-helper (boot25
-;;                                      "f9dff6f"
-;;                                      "0smpnx42bx4bkvaa5km32klsxpwrad2viz990c7g19v10igcpg6c"
-;;                                      ))
+(define boot25 (bootstrap coffee-script-boot24 "coffee-script-boot25"))
+(define coffee-script-boot25-helper (boot25
+                                     "f9dff6f"
+                                      "0smpnx42bx4bkvaa5km32klsxpwrad2viz990c7g19v10igcpg6c"
+                                      ))
 
-;; (define-public boot25-check (coffee-replicate coffee-script-boot25 "coffee-script" "coffee-script-boot25r" ))
+(define-public coffee-script-boot25
+  (patch-sources coffee-script-boot25-helper
+                 '(begin
+                    (substitute* '("src/coffee-script.coffee"
+                                   "src/command.coffee"
+                                   "src/lexer.coffee"
+                                   "src/nodes.coffee"
+                                   "src/rewriter.coffee")
+                      (("or=") "||=")
+                      (("and=") "&&=")))))
+
+(define-public boot25-check (coffee-replicate coffee-script-boot25 "coffee-script" "coffee-script-boot25r" ))
+
+
+(define boot26 (bootstrap coffee-script-boot25 "coffee-script-boot26"))
+(define-public coffee-script-boot26 (boot26
+                                     "f9dff6f"
+                                     "0smpnx42bx4bkvaa5km32klsxpwrad2viz990c7g19v10igcpg6c"
+                                     ))
+
+(define-public boot26-check (coffee-replicate coffee-script-boot26 "coffee-script" "coffee-script-boot26r" ))
