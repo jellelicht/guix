@@ -53,8 +53,6 @@
   `(add-after 'unpack 'backport-node
               (lambda _
                 (substitute* ',backport-files
-                    ;'("bin/node_coffee" ;"bin/cake"
-                    ;           "bin/coffee")
                   (("#!/usr/bin/env node --") "#!/usr/bin/env node")
                   (("require\\.paths.*$") "") ;;to prevent unshift funny business
                   ))))
@@ -68,11 +66,6 @@
                             (format #t "deleting generated JavaScript file '~a'~%" file)
                             (delete-file file))
                           (find-files ,dir ".*\\.js$"))
-                ;(rename-file "vendor" "node_modules")
-                ;;(for-each (lambda (file)
-                            ;;(format #t "deleting vendored  file '~a'~%" file)
-                            ;;(delete-file file))
-                          ;;(find-files "./vendor" ".*"))
                 (copy-file (string-append ,dir "/parser.js.keep") (string-append ,dir "/parser.js")))))
 
 (define* (coffee-script-build-helper-build cs-file target-dir #:optional (flags #f))
@@ -83,8 +76,7 @@
                ,(if flags
                     `(zero? (apply system* coffee ,flags "-o" ,target-dir (find-files "src" ".*\\.coffee$")))
                     `(zero? (apply system* coffee "-o" ,target-dir (find-files "src" ".*\\.coffee$")))
-                    )
-               ))))
+                    )))))
 
 
 (define-public coffee-script-boot0
@@ -132,29 +124,7 @@ saying it. ")
                              (commit commit)))
                        (sha256
                         (base32
-                         "01yy0l5f4a51jxg2bxc6c69b08c72jz41ldgksvzsk0jh3cg0s8f"))))
-             )
-
-    )
-
-  )
-
-;;require('vm').runInThisContext
-
-;; last working
-;; 1 parent 561a02c commit e4bb6c91e70cd8386d76040d65e0669dd6d9a255 @jashkenas jashkenas committed on 16 Feb 2010 
-
-;; works:
-;; a3c8c0b commit 79fa4723abe45f68dab90ff4fa86b2149c0219e9 @jashkenas jashkenas committed on 16 Feb 2010 
-;;  561a02c commit e4bb6c91e70cd8386d76040d65e0669dd6d9a255 @jashkenas jashkenas committed on 16 Feb 2010 
-
-;; does not work:
-;; f6a1f16 commit 0f2cf552e9e0b26dd568c89be189212f3d940983 @jashkenas jashkenas committed on 17 Feb 2010 
-
-;; WORKS!
-;;src/command_line.coffee
-;src/grammar.coffee
-
+                         "01yy0l5f4a51jxg2bxc6c69b08c72jz41ldgksvzsk0jh3cg0s8f")))))))
 
 (define-public coffee-script-boot1
   (let ((commit
@@ -176,8 +146,7 @@ saying it. ")
                            (delete-file "src/narwhal/coffee-script.coffee")
                            (substitute* "src/command_line.coffee"
                              (("fs\\.cat")
-                              "fs.readFile")))
-                        )))
+                              "fs.readFile"))))))
              (build-system node-build-system)
              (arguments
               `(#:tests? #f
@@ -185,7 +154,6 @@ saying it. ")
                 #:node ,node-0.1.29
                 #:phases
                 (modify-phases %standard-phases
-                  ;;,(coffee-script-build-helper-backport '("bin/node_coffee"))
                   ,(coffee-script-build-helper-generated-files "lib/coffee_script")
                   ,(coffee-script-build-helper-wrap  "bin/node_coffee" "lib/coffee_script") 
                   ,(coffee-script-build-helper-build "bin/coffee" "lib/coffee_script"))))
@@ -211,8 +179,7 @@ saying it. ")
                        (modules '((guix build utils)))
                        (snippet
                         '(begin
-                           (delete-file "src/narwhal.coffee")))
-                       ))
+                           (delete-file "src/narwhal.coffee")))))
              (arguments
               `(#:tests? #f
                 #:global? #t
@@ -226,9 +193,7 @@ saying it. ")
              (inputs
               `(("node" ,node-0.1.30)))
              (native-inputs
-              `(("coffee-script" ,coffee-script-boot1)
-                ;;("ruby" ,ruby)
-                )))))
+              `(("coffee-script" ,coffee-script-boot1))))))
 
 (define-public coffee-script-0.5.2
   (package (inherit coffee-script-boot2)
@@ -240,38 +205,13 @@ saying it. ")
                                          version ".tar.gz"))
                      (sha256
                       (base32
-                       ;;"05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
-                       "0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"
-                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
-                       ))
-                     ))
-           ;; (arguments
-           ;;  `(#:tests? #f
-           ;;    #:global? #t
-           ;;    #:node ,node-0.1.31
-           ;;    #:phases
-           ;;    (modify-phases %standard-phases
-           ;;      ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
-           ;;      ,(coffee-script-build-helper-generated-files "lib")
-           ;;      ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
-           ;;      ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
-           ;;      )))
-           ;; (inputs
-           ;;  `(("node" ,node-0.1.31)))
+                       "0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"))))
            (native-inputs
-            `(("coffee-script" ,coffee-script-boot1)
-             ;; ("ruby" ,ruby)
-              ))))
+            `(("coffee-script" ,coffee-script-boot1)))))
 
 (define-public coffee-script-between
   (let ((commit
-         ;"44398d044ffae2465be54715da59625f1748b673"
-         "1c7e4c4203fef1ae8f6ae58ddaefdd9e5801226a"
-         ;;"fe7d5dfd1951bceaa440ab1ba27704759c078124"
-         ;;"965034e16ec43b3462f76f6046e424aa869516d2"
-         ;;"b4ea43cbd059ababdc8351f8a3d3eec3993fb453"
-        ;; "4906cf1aff9dfe1e273ed2922ae5b9f43c01a17e"
-         ))
+         "1c7e4c4203fef1ae8f6ae58ddaefdd9e5801226a"))
     (package (inherit coffee-script-0.5.2)
              (name "coffee-script-between")
              (version (string-append "0.5.2." (string-take commit 7)))
@@ -282,9 +222,7 @@ saying it. ")
                              (commit commit)))
                        (sha256
                         (base32
-                         "00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
-                         ))
-                       ))
+                         "00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"))))
              (arguments
               `(#:tests? #f
                 #:global? #t
@@ -296,12 +234,8 @@ saying it. ")
                   ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
                   ,(coffee-script-build-helper-build "bin/coffee" "lib")
                   )))
-             ;; (inputs
-             ;;  `(("node" ,node-0.1.31)))
              (native-inputs
-              `(("coffee-script" ,coffee-script-0.5.2)
-               ;; ("ruby" ,ruby)
-                )))))
+              `(("coffee-script" ,coffee-script-0.5.2))))))
 
 
 (define-public coffee-script-0.5.3
@@ -314,16 +248,11 @@ saying it. ")
                                          version ".tar.gz"))
                      (sha256
                       (base32
-                       ;;"05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
-                       "0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
-                       ;;"0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"
-                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
-                       ))
+                       "0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"))
                      (modules '((guix build utils)))
                      (snippet
                       '(begin
-                         (delete-file "src/narwhal.coffee")))
-                     ))
+                         (delete-file "src/narwhal.coffee")))))
            (arguments
             `(#:tests? #f
               #:global? #t
@@ -335,10 +264,7 @@ saying it. ")
                 ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
                 ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c"))))
            (native-inputs
-            `(("coffee-script" ,coffee-script-boot2)
-              ;; ("ruby" ,ruby)
-              ))
-           ))
+            `(("coffee-script" ,coffee-script-boot2)))))
 
 
 (define-public coffee-script-test
@@ -351,16 +277,11 @@ saying it. ")
                                          version ".tar.gz"))
                      (sha256
                       (base32
-                       ;;"05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
-                       "0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
-                       ;;"0sv3sq3wf0c79hqb3nvx2xwf1fkpnj6c3861qyqwc31i84fza4c3"
-                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
-                       ))
+                       "0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"))
                      (modules '((guix build utils)))
                      (snippet
                       '(begin
-                         (delete-file "src/narwhal.coffee")))
-                     ))
+                         (delete-file "src/narwhal.coffee")))))
            (arguments
             `(#:tests? #f
               #:global? #t
@@ -372,9 +293,7 @@ saying it. ")
                 ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
                 ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c"))))
            (native-inputs
-            `(("coffee-script" ,coffee-script-0.5.3)
-              ;; ("ruby" ,ruby)
-              ))
+            `(("coffee-script" ,coffee-script-0.5.3)))
            ))
 
 (define-public coffee-script-0.5.4
@@ -387,9 +306,7 @@ saying it. ")
                                          version ".tar.gz"))
                      (sha256
                       (base32
-                       "05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"
-                       ;;"0zaflcffgb2l1linp1z9bk9ch6dq47kcj9lpm3iis9f1na1iknar"
-                       ))
+                       "05n7yq1qs8h4934mkln1k577yg6f5dn77sdbznva47gf4srsggna"))
                      ))
            (arguments
             `(#:tests? #f
@@ -405,9 +322,7 @@ saying it. ")
            (inputs
             `(("node" ,node-0.1.31)))
            (native-inputs
-            `(("coffee-script" ,coffee-script-0.5.3)
-              ;;("ruby" ,ruby)
-              ))))
+            `(("coffee-script" ,coffee-script-0.5.3)))))
 
 (define-public coffee-script-0.5.5
   (package (inherit coffee-script-0.5.4)
@@ -419,9 +334,7 @@ saying it. ")
                                          version ".tar.gz"))
                      (sha256
                       (base32
-                       "0ddghl4ax704hpzqd94q4s7lyngjmhvqzbki0lz4gc61k3320df3"
-                       ;;"00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
-                       ))
+                       "0ddghl4ax704hpzqd94q4s7lyngjmhvqzbki0lz4gc61k3320df3"))
                      ))
            (arguments
             `(#:tests? #f
@@ -437,28 +350,10 @@ saying it. ")
            (inputs
             `(("node" ,node-0.1.31)))
            (native-inputs
-            `(("coffee-script" ,coffee-script-0.5.4)
-              ;;("ruby" ,ruby)
-              )
-            )))
+            `(("coffee-script" ,coffee-script-0.5.4)))))
 
 (define-public coffee-script-boot3
-  (let ((commit
-         ;"44398d044ffae2465be54715da59625f1748b673"
-         ;;"62b2ab29cd1c47c4b8d287c2c08846a0aadb5828"
-         ;"965034e16ec43b3462f76f6046e424aa869516d2"
-         ;;"fe7d5dfd1951bceaa440ab1ba27704759c078124"
-         ;;"c6d7a27"
-         ;"5b3ef78"
-         ;;kj"15b00cb"
-         ;;"4c3b0b9"
-         ;;"b4ea43c"
-         "0834128"
-         ;;"fe7d5dfd1951bceaa440ab1ba27704759c078124"
-         ;;"965034e16ec43b3462f76f6046e424aa869516d2"
-         ;;"b4ea43cbd059ababdc8351f8a3d3eec3993fb453"
-        ;; "4906cf1aff9dfe1e273ed2922ae5b9f43c01a17e"
-         ))
+  (let ((commit "0834128"))
     (package (inherit coffee-script-0.5.4)
              (name "coffee-script-boot3")
              (version (string-append "0.5.4." (string-take commit 7)))
@@ -469,34 +364,11 @@ saying it. ")
                              (commit commit)))
                        (sha256
                         (base32
-                         ;;"0cg7piw4awfqpalzhrg8crj8gmwmn0qxqiizvn5i49m60sy0pwiy"
-                         ;;"0411ildnadhbh7fgri48mprs3p5dzp61x33i8jia32qlg6lixfzc"
-                         ;;"1168p4mxa3sk3b6sgyqfy5pdc0q8va0vcpsq6742ffbsjscsjsf4"
-                         ;;"1pix34ssfclihzgff992jiv80pil0ag8b2gyqvgga33h22hf1wb0";;
-                         ;;"1w1kklan1am9lvlpj0ysjmshhr854rgjnlh4fascfy0qbjy28g9a"
-                         ;;"1ajdl2f0d8a7k0jh7qqrrj9b762isrmyrdi6ygxwck9dk14rpbc7"
-                         ;;"0bawlb577jbck003p3z1bpwsibwk58bkdlssaxdams9binjr0rjd"
                          "1cc0qd2qs46yrkwmlccy8byslzb9xkjx2knxwmjp2fq8rv06flrk"
-                         ;; "00aws51vp3kak29kwbjzzbf5n1hwrymsljfjc8qh4dhvndcz61rl"
                          ))
                        ))
-             ;; (arguments
-             ;;  `(#:tests? #f
-             ;;    #:global? #t
-             ;;    #:node ,node-0.1.31
-             ;;    #:phases
-             ;;    (modify-phases %standard-phases
-             ;;      ,(coffee-script-build-helper-backport '("bin/coffee" "bin/cake"))
-             ;;      ,(coffee-script-build-helper-generated-files "lib")
-             ;;      ,(coffee-script-build-helper-wrap  "bin/coffee" "lib")
-             ;;      ,(coffee-script-build-helper-build "bin/coffee" "lib" "-c")
-             ;;      )))
-             ;; (inputs
-             ;;  `(("node" ,node-0.1.31)))
              (native-inputs
-              `(("coffee-script" ,coffee-script-0.5.4)
-                ;;("ruby" ,ruby)
-                )))))
+              `(("coffee-script" ,coffee-script-0.5.4))))))
 
 (define (coffee-replicate pkg-def key name)
   (let ((ni (package-native-inputs pkg-def))) 
@@ -504,20 +376,6 @@ saying it. ")
              (name name)
              (native-inputs
               (cons `(,key ,pkg-def) ni)))))
-
-;; (define (boot4 commit hash)
-;;   (package (inherit coffee-script-boot3)
-;;              (name "coffee-script-boot4")
-;;              (version (string-append "0.5.4." (string-take commit 7)))
-;;              (source (origin
-;;                        (method git-fetch)
-;;                        (uri (git-reference
-;;                              (url "https://github.com/jashkenas/coffeescript.git")
-;;                              (commit commit)))
-;;                        (sha256 (base32 hash))))
-;;              (native-inputs
-;;               `(("coffee-script" ,coffee-script-boot3)
-;;                 ))))
 
 (define* (bootstrap prev nname #:optional (node #f))
   (lambda (commit hash) 
@@ -550,6 +408,16 @@ saying it. ")
                (native-inputs
                 `(("coffee-script" ,prev)
                   ))))))
+
+(define (patch-sources prev snippet)
+  (let ((base-origin (package-source prev)))
+    (package (inherit prev)
+             (source
+              (origin (inherit base-origin)
+                      (modules '((guix build utils)))
+                      (snippet snippet))))))
+
+
 
 (define boot4 (bootstrap coffee-script-boot3 "coffee-script-boot4"))
 
@@ -587,7 +455,6 @@ saying it. ")
 (define-public coffee-script-boot8 (boot8
                                     "177ec92"
                                     "02d8xj557nygvax6sv9gmhq8p2kfw7y5w1gfz2wc0imbxlw148dy"
-
                                     ))
 
 (define-public boot8-check (coffee-replicate coffee-script-boot8 "coffee-script" "coffee-script-boot8r" ))
@@ -606,7 +473,6 @@ saying it. ")
 (define-public coffee-script-boot10 (boot10
                                      "c067808"
                                      "1six1n162xhsjk2h49m4ccw0wma32z2fl4y8pib72s4lk060zcx3"
-
                                     ))
 
 (define-public boot10-check (coffee-replicate coffee-script-boot10 "coffee-script" "coffee-script-boot10r" ))
@@ -615,11 +481,8 @@ saying it. ")
 
 (define boot11 (bootstrap coffee-script-boot10 "coffee-script-boot11" node-0.1.90))
 (define-public coffee-script-boot11 (boot11
-                                     ;;"065bf54"
-                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
                                      "8317960"
                                      "124wqh0w2i7p8q75qyjylxb4pdhw1z06z5wh6bvjsa47jvlh8d3i"
-
                                      ))
 
 (define-public boot11-check (coffee-replicate coffee-script-boot11 "coffee-script" "coffee-script-boot11r" ))
@@ -627,8 +490,6 @@ saying it. ")
 
 (define boot12 (bootstrap coffee-script-boot11 "coffee-script-boot12"))
 (define-public coffee-script-boot12 (boot12
-                                     ;;"065bf54"
-                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
                                      "a894db3"
                                      "19cbqp8hjcrdlzxrb9lxzx9lz72y8pydz5v8m6731pdvgrr1b75p"
                                      ))
@@ -638,8 +499,6 @@ saying it. ")
 
 (define boot13 (bootstrap coffee-script-boot12 "coffee-script-boot13"))
 (define-public coffee-script-boot13 (boot13
-                                     ;;"065bf54"
-                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
                                      "b746c90"
                                      "1vwnqi1m2h31m03xn7flp949x5wn7dqp3rp31dn05z54i1p3gxpi"
                                      ))
@@ -649,8 +508,6 @@ saying it. ")
 
 (define boot14 (bootstrap coffee-script-boot13 "coffee-script-boot14" node-0.1.95))
 (define-public coffee-script-boot14 (boot14
-                                     ;;"065bf54"
-                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
                                      "a133e01"
                                      "08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
                                      ))
@@ -661,10 +518,6 @@ saying it. ")
 ;; 15 broken: have to split commit
 (define boot15 (bootstrap coffee-script-boot14 "coffee-script-boot15-temp" node-0.1.98))
 (define coffee-script-boot15-temp (boot15
-                                     ;;"065bf54"
-                                     ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
-                                     ;;"a133e01"
-                                     ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
                                      "0222d90"
                                      "18rn6s7xxjmsd3696c0gpvm1m028lcmd2kyladybw5las4d3cp0z"
                                      ))
@@ -695,10 +548,6 @@ saying it. ")
 
 (define boot17 (bootstrap coffee-script-boot16 "coffee-script-boot17"))
 (define-public coffee-script-boot17 (boot17
-                                   ;;"065bf54"
-                                   ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
-                                   ;;"a133e01"
-                                   ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
                                    "4b284f6"
                                    "0bgqmhxw0vyhibdgi1pkljdx8qd548jcap9vd1fhrhm4r5kj625w"
                                    ))
@@ -720,13 +569,6 @@ saying it. ")
                                     )))))))))
 
 
-;; (define boot18 (bootstrap coffee-script-boot17 "coffee-script-boot18"))
-;; (define-public coffee-script-boot18 (boot18
-;;                                      ;;"065bf54"
-;;                                      ;;"0hh6ds6qqf1jgigbkfl876hav7sysg12dxi9nlyk609vr9fff6af"
-;;                                      ;;"a133e01"
-;;                                      ;;"08dbl57b2l9pzfdmsdal7l33mg09ps3i1xb6qbg0s6j3r6ym51yd"
-;;                                      "4b284f6"
 (define boot19 (bootstrap coffee-script-boot18 "coffee-script-boot19"))
 (define-public coffee-script-boot19 (boot19
                                      "0fcfb80"
@@ -753,19 +595,29 @@ saying it. ")
                                             "1cppvxnvqip5yy7ms4p98xyydycg0iczshl75rbk1bm58n9cpca4"))
 
 (define-public coffee-script-boot21
-  (let ((so (package-source coffee-script-boot21-helper))) 
-    (package (inherit coffee-script-boot21-helper)
-             (source
-              (origin (inherit so)
-                      (modules '((guix build utils)))
-                      (snippet
-                       '(begin
-                          (substitute* '("src/grammar.coffee" "src/coffee-script.coffee"
-                                         "src/lexer.coffee" "src/nodes.coffee")
-                            (("(new [a-zA-Z]+)\n" all identifier)
-                             (string-append identifier "()\n"))
-                            (("\\((new [a-zA-Z]+)\\)" all identifier)
-                             (string-append "(" identifier "())"))))))))))
+  (patch-sources coffee-script-boot21-helper
+                 '(begin
+                    (substitute* '("src/grammar.coffee" "src/coffee-script.coffee"
+                                   "src/lexer.coffee" "src/nodes.coffee")
+                      (("(new [a-zA-Z]+)\n" all identifier)
+                       (string-append identifier "()\n"))
+                      (("\\((new [a-zA-Z]+)\\)" all identifier)
+                       (string-append "(" identifier "())"))))))
+
+;; (define-public coffee-script-boot21
+;;   (let ((so (package-source coffee-script-boot21-helper))) 
+;;     (package (inherit coffee-script-boot21-helper)
+;;              (source
+;;               (origin (inherit so)
+;;                       (modules '((guix build utils)))
+;;                       (snippet
+;;                        '(begin
+;;                           (substitute* '("src/grammar.coffee" "src/coffee-script.coffee"
+;;                                          "src/lexer.coffee" "src/nodes.coffee")
+;;                             (("(new [a-zA-Z]+)\n" all identifier)
+;;                              (string-append identifier "()\n"))
+;;                             (("\\((new [a-zA-Z]+)\\)" all identifier)
+;;                              (string-append "(" identifier "())"))))))))))
 
 (define-public boot21-check (coffee-replicate coffee-script-boot21 "coffee-script" "coffee-script-boot21r" ))
 
@@ -787,24 +639,30 @@ saying it. ")
 (define coffee-script-boot23-helper (boot23
                                      "72c4efb"
                                      "1iafv758mrh1b78qaciny87mk35qcd5r2m08nr19jmxi1bpxk0bf"
-
-                                     ;;"2a93259"
-                                     ;;"0ynprqg3frhm6lw1aflmjzv7gsxy6g357j8ydi0rm3hczc40pgv3"
                                      ))
 
+;; (define-public coffee-script-boot23
+;;   (let ((so (package-source coffee-script-boot23-helper))) 
+;;     (package (inherit coffee-script-boot23-helper)
+;;              (source
+;;               (origin (inherit so)
+;;                       (modules '((guix build utils)))
+;;                       (snippet
+;;                        '(begin
+;;                           (substitute* "src/cake.coffee"
+;;                             (("([ ]+)for all name, task of tasks" all spaces)
+;;                              (string-append spaces "for name, task of tasks")))
+;;                           (substitute* "src/helpers.coffee"
+;;                             (("for all key, val") "for key, val")))))))))
+
 (define-public coffee-script-boot23
-  (let ((so (package-source coffee-script-boot23-helper))) 
-    (package (inherit coffee-script-boot23-helper)
-             (source
-              (origin (inherit so)
-                      (modules '((guix build utils)))
-                      (snippet
-                       '(begin
-                          (substitute* "src/cake.coffee"
-                            (("([ ]+)for all name, task of tasks" all spaces)
-                             (string-append spaces "for name, task of tasks")))
-                          (substitute* "src/helpers.coffee"
-                            (("for all key, val") "for key, val")))))))))
+  (patch-sources coffee-script-boot23-helper
+                 '(begin
+                    (substitute* "src/cake.coffee"
+                      (("([ ]+)for all name, task of tasks" all spaces)
+                       (string-append spaces "for name, task of tasks")))
+                    (substitute* "src/helpers.coffee"
+                      (("for all key, val") "for key, val")))))
 
 (define-public boot23-check (coffee-replicate coffee-script-boot23 "coffee-script" "coffee-script-boot23r" ))
 
@@ -812,396 +670,15 @@ saying it. ")
 (define-public coffee-script-boot24 (boot24
                                      "88847df"
                                      "17kb30sp85cddxbv20vc2nj2i2rk1j5fb7b6d704dpb9v7pa05py"
-
-                                     ;;"72c4efb"
-                                     ;;"1iafv758mrh1b78qaciny87mk35qcd5r2m08nr19jmxi1bpxk0bf"
-                                     ;;"2a93259"
-                                     ;;"0ynprqg3frhm6lw1aflmjzv7gsxy6g357j8ydi0rm3hczc40pgv3"
                                      ))
 
 (define-public boot24-check (coffee-replicate coffee-script-boot24 "coffee-script" "coffee-script-boot24r" ))
 
 
-(define boot25 (bootstrap coffee-script-boot24 "coffee-script-boot25"))
-(define-public coffee-script-boot25 (boot25
-                                     "88847df"
-                                     "17kb30sp85cddxbv20vc2nj2i2rk1j5fb7b6d704dpb9v7pa05py"
-                                     ))
+;; (define boot25 (bootstrap coffee-script-boot24 "coffee-script-boot25"))
+;; (define coffee-script-boot25-helper (boot25
+;;                                      "f9dff6f"
+;;                                      "0smpnx42bx4bkvaa5km32klsxpwrad2viz990c7g19v10igcpg6c"
+;;                                      ))
 
-(define-public boot25-check (coffee-replicate coffee-script-boot25 "coffee-script" "coffee-script-boot25r" ))
-
-
-(define-public coffee-script-js
-  (package
-    (name "coffee-script-js")
-    (version "1.0.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/jashkenas/coffeescript/archive/1.0.0.tar.gz")
-       (sha256
-        (base32
-         "1ssg6lgyr36q7v0p25xpj7wgvz8qxq1cvnlvn5p3r1q8mj93048f"))))
-    (build-system node-build-system)
-    (arguments
-     `(#:tests? #f
-       #:phases
-       (modify-phases %standard-phases
-         (add-after 'delete-minified-files 'delete-generated-files
-           (lambda* (#:key inputs #:allow-other-keys)
-             (for-each (lambda (file)
-                         (format #t "deleting generated JavaScript file '~a'~%" file)
-                         (delete-file file))
-                       (find-files "." "(\\.js)$"))
-             (for-each (lambda (file)
-                         (format #t "deleting generated JavaScript file '~a'~%" file)
-                         (delete-file file))
-                       (find-files "./vendor" ".*"))
-             #t
-             ))
-         (replace 'build
-           (lambda* (#:key outputs intputs #:allow-other-keys)
-             #t
-             ;; compile all files:
-
-             ;; First 0.5
-
-             ;; We need jison 0.1
-             ;; pseudo code:
-             ;;  extend global, require('util')
-             ;;  require 'jison'
-             ;;  parser = require('./lib/grammar').parser
-             ;;  fs.writeFile 'lib/parser.js', parser.generate()
-
-
-
-             )))))
-    (native-inputs
-     `())
-    (synopsis "CoffeeScript is a little language that compiles into
-JavaScript.")
-    (description "CoffeeScript is a little language that compiles into
-JavaScript.")
-    (home-page "http://jashkenas.github.com/coffee-script/")
-    (license expat)))
-
-(define-public node-jison@0.3.10
-  (package
-    (name "node-jison")
-    (version "0.3.10")
-    (source
-     (origin
-       (method url-fetch)
-       (uri (string-append "https://github.com/zaach/jison/archive/v"
-                           version ".tar.gz"))
-       (sha256
-        (base32
-         "17w04zqfj1333qiplq084jcvnzfs06bwknmbwa7yiy0cpmn51677"))))
-    (build-system node-build-system)
-    (arguments
-     `(#:global? #t))
-    (propagated-inputs
-     `(("node-nomnom" ,node-nomnom)))
-    (native-inputs
-     `(("node-test" ,node-test)))
-    (synopsis "API for creating parsers in JavaScript.")
-    (description "Jison generates bottom-up parsers in JavaScript.  Its API is
-similar to Bison's, hence the name.  It supports many of Bison's major
-features, plus some of its own.")
-    (home-page
-     "https://github.com/zaach/jison")
-    (license expat)))
-
-;; imported
-(define-public node-ansi-font
-  (package
-    (name "node-ansi-font")
-    (version "0.0.2")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/Gozala/ansi-font/archive/v0.0.2/ansi-font-v0.0.2.tar.gz")
-       (sha256
-        (base32
-         "1sp8kf4wps9spwspi64x7fsir6lkgb4r6sl811y4v8wnkz3hdf31"))))
-    (build-system node-build-system)
-    (propagated-inputs `())
-    (native-inputs `())
-    (synopsis "ANSI font styling utils")
-    (description "ANSI font styling utils")
-    (home-page "https://github.com/Gozala/ansi-font")
-    (license expat)))
-
-(define-public node-has-flag
-  (package
-    (name "node-has-flag")
-    (version "2.0.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/sindresorhus/has-flag/archive/v2.0.0/has-flag-v2.0.0.tar.gz")
-       (sha256
-        (base32
-         "1wsgw71fmsb09vr0mxx44l52qjqp1vdxg4dwv8j72wbaffc79xw1"))))
-    (build-system node-build-system)
-    (propagated-inputs `())
-    (native-inputs `())
-    (synopsis "Check if argv has a specific flag")
-    (description "Check if argv has a specific flag")
-    (home-page
-     "https://github.com/sindresorhus/has-flag#readme")
-    (license expat)))
-
-(define-public node-supports-color
-  (package
-    (name "node-supports-color")
-    (version "3.1.2")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/chalk/supports-color/archive/v3.1.2/supports-color-v3.1.2.tar.gz")
-       (sha256
-        (base32
-         "1xj4z60f8n0wxn4zgjhms867n5s9c9r5ia9qv0faa2v42slf1479"))))
-    (build-system node-build-system)
-    (propagated-inputs
-     `(("node-has-flag" ,node-has-flag)))
-    (native-inputs `())
-    (synopsis
-     "Detect whether a terminal supports color")
-    (description
-     "Detect whether a terminal supports color")
-    (home-page
-     "https://github.com/chalk/supports-color")
-    (license expat)))
-
-(define-public node-has-ansi
-  (package
-    (name "node-has-ansi")
-    (version "2.0.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/sindresorhus/has-ansi/archive/2.0.0/has-ansi-2.0.0.tar.gz")
-       (sha256
-        (base32
-         "1jal36jp1k41ryzpp4hz2271xnlaw8sqz5ybarlbd4r6w04mrz2m"))))
-    (build-system node-build-system)
-    (propagated-inputs
-     `(("node-ansi-regex" ,node-ansi-regex)))
-    (native-inputs `())
-    (synopsis
-     "Check if a string has ANSI escape codes")
-    (description
-     "Check if a string has ANSI escape codes")
-    (home-page
-     "https://github.com/sindresorhus/has-ansi")
-    (license expat)))
-
-(define-public node-escape-string-regexp
-  (package
-    (name "node-escape-string-regexp")
-    (version "1.0.5")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/sindresorhus/escape-string-regexp/archive/v1.0.5/escape-string-regexp-v1.0.5.tar.gz")
-       (sha256
-        (base32
-         "0ygf86hs0lrhd6hmnbgz720p6nh4b6prhcmrdy7mdx6ad05bxj6d"))))
-    (build-system node-build-system)
-    (propagated-inputs `())
-    (native-inputs `())
-    (synopsis "Escape RegExp special characters")
-    (description "Escape RegExp special characters")
-    (home-page
-     "https://github.com/sindresorhus/escape-string-regexp")
-    (license expat)))
-
-(define-public node-ansi-styles
-  (package
-    (name "node-ansi-styles")
-    (version "2.2.1")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/chalk/ansi-styles/archive/v2.2.1/ansi-styles-v2.2.1.tar.gz")
-       (sha256
-        (base32
-         "1xz3wmrhcbfxjjygb66qjqll257crgrpqx53ynipiawvzkw07rsa"))))
-    (build-system node-build-system)
-    (propagated-inputs `())
-    (native-inputs `())
-    (synopsis
-     "ANSI escape codes for styling strings in the terminal")
-    (description
-     "ANSI escape codes for styling strings in the terminal")
-    (home-page
-     "https://github.com/chalk/ansi-styles#readme")
-    (license expat)))
-
-(define-public node-ansi-regex
-  (package
-    (name "node-ansi-regex")
-    (version "2.0.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/sindresorhus/ansi-regex/archive/2.0.0/ansi-regex-2.0.0.tar.gz")
-       (sha256
-        (base32
-         "17bq99qp4gic157pdnnhl5hxrc4qmlgk38yq0pycylc7cxas40cx"))))
-    (build-system node-build-system)
-    (propagated-inputs `())
-    (native-inputs `())
-    (synopsis
-     "Regular expression for matching ANSI escape codes")
-    (description
-     "Regular expression for matching ANSI escape codes")
-    (home-page
-     "https://github.com/sindresorhus/ansi-regex")
-    (license expat)))
-
-(define-public node-strip-ansi
-  (package
-    (name "node-strip-ansi")
-    (version "3.0.1")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/chalk/strip-ansi/archive/v3.0.1/strip-ansi-v3.0.1.tar.gz")
-       (sha256
-        (base32
-         "03kvhmnk7dyi2z1app80pkr6501gq3w64fd837nh2hlg0n4qadsa"))))
-    (build-system node-build-system)
-    (propagated-inputs
-     `(("node-ansi-regex" ,node-ansi-regex)))
-    (native-inputs `())
-    (synopsis "Strip ANSI escape codes")
-    (description "Strip ANSI escape codes")
-    (home-page "https://github.com/chalk/strip-ansi")
-    (license expat)))
-
-(define-public node-chalk
-  (package
-    (name "node-chalk")
-    (version "1.1.3")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/chalk/chalk/archive/v1.1.3/chalk-v1.1.3.tar.gz")
-       (sha256
-        (base32
-         "1rkawhaywsswig9x432j7zk16qrall5avpqkzr1njzia4c5wbrad"))))
-    (build-system node-build-system)
-    (arguments
-     `(#:tests? #f)) ;;XXX: Need major test framework bootstrapped
-    (propagated-inputs
-     `(("node-strip-ansi" ,node-strip-ansi)
-       ("node-ansi-styles" ,node-ansi-styles)
-       ("node-escape-string-regexp"
-        ,node-escape-string-regexp)
-       ("node-has-ansi" ,node-has-ansi)
-       ("node-supports-color" ,node-supports-color)))
-    (native-inputs `())
-    (synopsis
-     "Terminal string styling done right. Much color.")
-    (description
-     "Terminal string styling done right. Much color.")
-    (home-page
-     "https://github.com/chalk/chalk#readme")
-    (license expat)))
-
-
-(define-public node-test
-  (package
-    (name "node-test")
-    (version "0.6.0")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/Gozala/test-commonjs/archive/v0.6.0/test-commonjs-v0.6.0.tar.gz")
-       (sha256
-        (base32
-         "166ja3j1hk760xj4y6ghlakq6gnm1n2j3jd26x04xs82x8pbm3qy"))))
-    (build-system node-build-system)
-    (propagated-inputs
-     `(("node-ansi-font" ,node-ansi-font)))
-    (native-inputs `())
-    (synopsis "(Un)CommonJS test runner.")
-    (description "(Un)CommonJS test runner.")
-    (home-page
-     "https://github.com/Gozala/test-commonjs/")
-    (license expat)))
-
-(define-public node-underscore
-  (package
-    (name "node-underscore")
-    (version "1.8.3")
-    (source
-     (origin
-       (method url-fetch)
-       (uri "https://github.com/jashkenas/underscore/archive/1.8.3/underscore-1.8.3.tar.gz")
-       (sha256
-        (base32
-         "0h67p9p9l0y6w7qbwd6z40pw18zlhjb6whpz16pabwa204lvs05v"))))
-    (build-system node-build-system)
-    (propagated-inputs `())
-    (native-inputs `())
-    (synopsis
-     "JavaScript's functional programming helper library.")
-    (description
-     "JavaScript's functional programming helper library.")
-    (home-page "http://underscorejs.org")
-    (license expat)))
-
-(define-public node-nomnom
-  (let ((commit "6110ac36f9d94b7b7a0799e70ace729872fb26eb"))
-    (package
-      (name "node-nomnom")
-      (version (string-append "1.8.1." (string-take commit 7)))
-      (source
-       (origin
-         (method git-fetch)
-         (uri (git-reference
-               (url "https://github.com/harthur/nomnom.git")
-               (commit commit)))
-         (sha256
-          (base32
-           "0fn374i4n3xhcxjn2hxmiq071ranvvrxiyw5n46aj7b5i512ybzd"))))
-      (build-system node-build-system)
-      (arguments
-       `(#:tests? #f)) ;;XXX: can't package nodeunit yet
-      (propagated-inputs
-       `(("node-chalk" ,node-chalk)
-         ("node-underscore" ,node-underscore)))
-      (native-inputs `())
-      (synopsis "Option parser with generated usage and commands")
-      (description "Option parser with generated usage and commands")
-      (home-page
-       "https://github.com/harthur/nomnom")
-      (license expat))))
-
-(define-public node-jsonselect
-  (let ((commit "91ca3a0e7a570dbf17374e9b7b450cfbedd1734b"))
-    (package
-      (name "node-jsonselect")
-      (version (string-append "0.4.0." (string-take commit 7)))
-      (source
-       (origin
-         (method git-fetch)
-         (uri (git-reference
-               (url "https://github.com/lloyd/JSONSelect.git")
-               (commit commit)))
-         (sha256
-          (base32
-           "092a9bn708cd0lxiz65dwc9hgwnipfm3lilx7s5zsnw5zygwz9rb"))))
-      (build-system node-build-system)
-      (propagated-inputs
-       `())
-      (native-inputs `())
-      (synopsis "CSS-like selectors for JSON")
-      (description "CSS-like selectors for JSON")
-      (home-page
-       "https://github.com/lloyd/JSONSelect")
-      (license expat))))
+;; (define-public boot25-check (coffee-replicate coffee-script-boot25 "coffee-script" "coffee-script-boot25r" ))
