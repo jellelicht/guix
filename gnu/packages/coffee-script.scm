@@ -749,39 +749,86 @@ saying it. ")
 ;;o "NEW Value",                              -> (new CallNode($2, [])).newInstance()
 
 (define boot21 (bootstrap coffee-script-boot20 "coffee-script-boot21"))
+(define coffee-script-boot21-helper (boot21 "7d79d73" 
+                                            "1cppvxnvqip5yy7ms4p98xyydycg0iczshl75rbk1bm58n9cpca4"))
 
 (define-public coffee-script-boot21
-  (let ((support-origin (package-source coffee-script-boot20)))
-    (package (inherit (boot21
-                       "7d79d73"
-                       "1cppvxnvqip5yy7ms4p98xyydycg0iczshl75rbk1bm58n9cpca4"))
+  (let ((so (package-source coffee-script-boot21-helper))) 
+    (package (inherit coffee-script-boot21-helper)
              (source
-              (origin
-                (inherit support-origin)
-                (modules '((guix build utils)))
-                (snippet
-                 '(begin
-                    (substitute* '("src/grammar.coffee"
-                                   "src/coffee-script.coffee"
-                                   "src/lexer.coffee"
-                                   "src/nodes.coffee")
-                      (("(new [a-zA-Z]+)\n" all identifier)
-                       (string-append identifier "()\n"))
-                      (("\\((new [a-zA-Z]+)\\)" all identifier)
-                       (string-append "(" identifier "())"))
-                      ))))))))
+              (origin (inherit so)
+                      (modules '((guix build utils)))
+                      (snippet
+                       '(begin
+                          (substitute* '("src/grammar.coffee" "src/coffee-script.coffee"
+                                         "src/lexer.coffee" "src/nodes.coffee")
+                            (("(new [a-zA-Z]+)\n" all identifier)
+                             (string-append identifier "()\n"))
+                            (("\\((new [a-zA-Z]+)\\)" all identifier)
+                             (string-append "(" identifier "())"))))))))))
 
 (define-public boot21-check (coffee-replicate coffee-script-boot21 "coffee-script" "coffee-script-boot21r" ))
 
 
 (define boot22 (bootstrap coffee-script-boot21 "coffee-script-boot22"))
 (define-public coffee-script-boot22 (boot22
-                                     "7c426db"
-                                     "0ibsy7lcygvkg0pf1a4g19jh70f5hj8x0jyqybnxc1ix403in1rz"
+                                     "2a93259"
+                                     "0ynprqg3frhm6lw1aflmjzv7gsxy6g357j8ydi0rm3hczc40pgv3"
                                      ))
 
 (define-public boot22-check (coffee-replicate coffee-script-boot22 "coffee-script" "coffee-script-boot22r" ))
 
+
+;;-  for name, task of tasks
+;;+  for all name, task of tasks
+
+
+(define boot23 (bootstrap coffee-script-boot22 "coffee-script-boot23"))
+(define coffee-script-boot23-helper (boot23
+                                     "72c4efb"
+                                     "1iafv758mrh1b78qaciny87mk35qcd5r2m08nr19jmxi1bpxk0bf"
+
+                                     ;;"2a93259"
+                                     ;;"0ynprqg3frhm6lw1aflmjzv7gsxy6g357j8ydi0rm3hczc40pgv3"
+                                     ))
+
+(define-public coffee-script-boot23
+  (let ((so (package-source coffee-script-boot23-helper))) 
+    (package (inherit coffee-script-boot23-helper)
+             (source
+              (origin (inherit so)
+                      (modules '((guix build utils)))
+                      (snippet
+                       '(begin
+                          (substitute* "src/cake.coffee"
+                            (("([ ]+)for all name, task of tasks" all spaces)
+                             (string-append spaces "for name, task of tasks")))
+                          (substitute* "src/helpers.coffee"
+                            (("for all key, val") "for key, val")))))))))
+
+(define-public boot23-check (coffee-replicate coffee-script-boot23 "coffee-script" "coffee-script-boot23r" ))
+
+(define boot24 (bootstrap coffee-script-boot23 "coffee-script-boot24" node-0.1.101))
+(define-public coffee-script-boot24 (boot24
+                                     "88847df"
+                                     "17kb30sp85cddxbv20vc2nj2i2rk1j5fb7b6d704dpb9v7pa05py"
+
+                                     ;;"72c4efb"
+                                     ;;"1iafv758mrh1b78qaciny87mk35qcd5r2m08nr19jmxi1bpxk0bf"
+                                     ;;"2a93259"
+                                     ;;"0ynprqg3frhm6lw1aflmjzv7gsxy6g357j8ydi0rm3hczc40pgv3"
+                                     ))
+
+(define-public boot24-check (coffee-replicate coffee-script-boot24 "coffee-script" "coffee-script-boot24r" ))
+
+
+(define boot25 (bootstrap coffee-script-boot24 "coffee-script-boot25"))
+(define-public coffee-script-boot25 (boot25
+                                     "88847df"
+                                     "17kb30sp85cddxbv20vc2nj2i2rk1j5fb7b6d704dpb9v7pa05py"
+                                     ))
+
+(define-public boot25-check (coffee-replicate coffee-script-boot25 "coffee-script" "coffee-script-boot25r" ))
 
 
 (define-public coffee-script-js
