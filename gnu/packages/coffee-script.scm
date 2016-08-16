@@ -24,6 +24,7 @@
   #:use-module (guix build-system node)
   #:use-module (guix build-system ruby)
   #:use-module (guix build-system gnu)
+  #:use-module (gnu packages)
   #:use-module (gnu packages adns)
   #:use-module (gnu packages curl)
   #:use-module (gnu packages python)
@@ -409,15 +410,15 @@ saying it. ")
                 `(("coffee-script" ,prev)
                   ))))))
 
-(define (patch-sources prev snippet)
-  (let ((base-origin (package-source prev)))
+(define* (patch-sources #:key prev (snippet #f) (patch #f))
+  (let ((base-origin (package-source prev))
+        (patches (if patch (search-patches patch) '())))
     (package (inherit prev)
              (source
               (origin (inherit base-origin)
                       (modules '((guix build utils)))
-                      (snippet snippet))))))
-
-
+                      (snippet snippet)
+                      (patches patches))))))
 
 (define boot4 (bootstrap coffee-script-boot3 "coffee-script-boot4"))
 
@@ -595,7 +596,8 @@ saying it. ")
                                             "1cppvxnvqip5yy7ms4p98xyydycg0iczshl75rbk1bm58n9cpca4"))
 
 (define-public coffee-script-boot21
-  (patch-sources coffee-script-boot21-helper
+  (patch-sources #:prev coffee-script-boot21-helper
+                 #:snippet
                  '(begin
                     (substitute* '("src/grammar.coffee" "src/coffee-script.coffee"
                                    "src/lexer.coffee" "src/nodes.coffee")
@@ -656,7 +658,8 @@ saying it. ")
 ;;                             (("for all key, val") "for key, val")))))))))
 
 (define-public coffee-script-boot23
-  (patch-sources coffee-script-boot23-helper
+  (patch-sources #:prev coffee-script-boot23-helper
+                 #:snippet
                  '(begin
                     (substitute* "src/cake.coffee"
                       (("([ ]+)for all name, task of tasks" all spaces)
@@ -682,7 +685,8 @@ saying it. ")
                                       ))
 
 (define-public coffee-script-boot25
-  (patch-sources coffee-script-boot25-helper
+  (patch-sources #:prev coffee-script-boot25-helper
+                 #:snippet
                  '(begin
                     (substitute* '("src/coffee-script.coffee"
                                    "src/command.coffee"
@@ -690,15 +694,62 @@ saying it. ")
                                    "src/nodes.coffee"
                                    "src/rewriter.coffee")
                       (("or=") "||=")
-                      (("and=") "&&=")))))
+                      (("and=") "&&=")))
+                 #:patch "coffeescript-backport-optional-braces.patch"))
 
 (define-public boot25-check (coffee-replicate coffee-script-boot25 "coffee-script" "coffee-script-boot25r" ))
 
 
 (define boot26 (bootstrap coffee-script-boot25 "coffee-script-boot26"))
-(define-public coffee-script-boot26 (boot26
-                                     "f9dff6f"
-                                     "0smpnx42bx4bkvaa5km32klsxpwrad2viz990c7g19v10igcpg6c"
-                                     ))
+(define coffee-script-boot26-helper (boot26 "9c8a228"
+                                     "1ndfclfbdpqqpf18ixmx8h5v2ssh87hndhchxg5zwk0np3rydz3c"))
+
+(define-public coffee-script-boot26
+  (patch-sources #:prev coffee-script-boot26-helper
+                 #:patch "coffeescript-backport-dollar-string-interpolation.patch"))
+
+(define-public boot26-check (coffee-replicate coffee-script-boot26 "coffee-script" "coffee-script-boot26r" ))
+
+(define boot27 (bootstrap coffee-script-boot26 "coffee-script-boot27"))
+(define-public coffee-script-boot27 (boot27
+                                     "d624310"
+                                     "1084fv364zbh4v446fkygd6vxyv7zbszq3hhg6d39prj5p3q9xm1"
+                                            ))
+(define-public boot27-check (coffee-replicate coffee-script-boot27 "coffee-script" "coffee-script-boot27r" ))
+
+;;(define-public coffee-script-boot26
+  ;;(patch-sources #:prev coffee-script-boot26-helper
+                 ;;#:snippet
+                 ;;'(begin
+                    ;;(substitute* '("src/cake.coffee"
+                                   ;;"src/lexer.coffee"
+                                   ;;"src/nodes.coffee"
+                                   ;;"src/optparse.coffee"
+                                   ;;"src/repl.coffee"
+                                   ;;"src/scope.coffee")
+                      ;;(("([A-Za-z]+):[ ]+(@?[A-Z-a-z.[]]()+)$" _ key val)
+                       ;;(string-append "{" key ": " val "}"))
+                      ;;(("merge\\(o, indent: @idt\\(\\)\\)")
+                       ;;"merge(o, {indent: @idt()})")))))
+;;([A-Za-z]|\\[|\\])
+;; "([A-Za-z]+):[ ]+(@?[A-Za-z.()]|\\[|\\])+,[ ]+([A-Z-a-z]+):[ ]+(@?[A-Za-z.()]|\\[|\\])$""
+;;(define pat "([A-Za-z]+):[ ]+(@?[][ A-Za-z0-9.()>-])+,[ ]?([A-Za-z]+):[ ]+(@?[][ A-Za-z0-9.()>-])+$")
+(define lvalue "[A-Za-z0-9]+")
+(define rvalue "@?(->)?[][ 'A-Za-z0-9.]+(\\([A-Za-z0-9]*\\))?")
+(define single
+  (string-append lvalue ":[ ]+" rvalue "$"))
+(define double
+  (string-append lvalue ":[ ]+"
+                 rvalue ",[ ]+"
+                 lvalue ":[ ]+"
+                 rvalue "$"))
+(define triple
+  (string-append lvalue ":[ ]+"
+                 rvalue ",[ ]+"
+                 lvalue ":[ ]+"
+                 rvalue ",[ ]+"
+                 lvalue ":[ ]+"
+                 rvalue "$"))
+
 
 (define-public boot26-check (coffee-replicate coffee-script-boot26 "coffee-script" "coffee-script-boot26r" ))
