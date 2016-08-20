@@ -712,10 +712,21 @@ saying it. ")
 
 (define boot27 (bootstrap coffee-script-boot26 "coffee-script-boot27"))
 (define-public coffee-script-boot27 (boot27
-                                     "d624310"
-                                     "1084fv364zbh4v446fkygd6vxyv7zbszq3hhg6d39prj5p3q9xm1"
+                                     "9be1453"
+                                     "1586pfw4nn3sfkcqkbyisna2cwympd8cyqp4dz7s6ggi773nvqm8"
                                             ))
 (define-public boot27-check (coffee-replicate coffee-script-boot27 "coffee-script" "coffee-script-boot27r" ))
+
+
+(define boot28 (bootstrap coffee-script-boot27 "coffee-script-boot28"))
+(define coffee-script-boot28-helper (boot28
+                                     "c9421cb"
+                                     "17v1c2p3yf2caplyn5xq7sk667yrh1f5g5m8wb6z6zclmahnfy52"))
+(define-public coffee-script-boot28
+  (patch-sources #:prev coffee-script-boot28-helper
+                 #:patch "coffeescript-backport-prefixed-splats.patch"))
+(define-public boot28-check (coffee-replicate coffee-script-boot28 "coffee-script" "coffee-script-boot28r" ))
+;;coffeescript-backport-prefixed-splats.patch
 
 ;;(define-public coffee-script-boot26
   ;;(patch-sources #:prev coffee-script-boot26-helper
