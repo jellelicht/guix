@@ -270,6 +270,7 @@ if HAVE_GUILE_JSON
 SCM_TESTS += 					\
   tests/pypi.scm				\
   tests/cpan.scm				\
+  tests/npm.scm					\
   tests/gem.scm
 
 endif
