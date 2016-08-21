@@ -643,20 +643,6 @@ saying it. ")
                                      "1iafv758mrh1b78qaciny87mk35qcd5r2m08nr19jmxi1bpxk0bf"
                                      ))
 
-;; (define-public coffee-script-boot23
-;;   (let ((so (package-source coffee-script-boot23-helper))) 
-;;     (package (inherit coffee-script-boot23-helper)
-;;              (source
-;;               (origin (inherit so)
-;;                       (modules '((guix build utils)))
-;;                       (snippet
-;;                        '(begin
-;;                           (substitute* "src/cake.coffee"
-;;                             (("([ ]+)for all name, task of tasks" all spaces)
-;;                              (string-append spaces "for name, task of tasks")))
-;;                           (substitute* "src/helpers.coffee"
-;;                             (("for all key, val") "for key, val")))))))))
-
 (define-public coffee-script-boot23
   (patch-sources #:prev coffee-script-boot23-helper
                  #:snippet
@@ -722,45 +708,244 @@ saying it. ")
 (define coffee-script-boot28-helper (boot28
                                      "c9421cb"
                                      "17v1c2p3yf2caplyn5xq7sk667yrh1f5g5m8wb6z6zclmahnfy52"))
+
 (define-public coffee-script-boot28
   (patch-sources #:prev coffee-script-boot28-helper
                  #:patch "coffeescript-backport-prefixed-splats.patch"))
 (define-public boot28-check (coffee-replicate coffee-script-boot28 "coffee-script" "coffee-script-boot28r" ))
-;;coffeescript-backport-prefixed-splats.patch
-
-;;(define-public coffee-script-boot26
-  ;;(patch-sources #:prev coffee-script-boot26-helper
-                 ;;#:snippet
-                 ;;'(begin
-                    ;;(substitute* '("src/cake.coffee"
-                                   ;;"src/lexer.coffee"
-                                   ;;"src/nodes.coffee"
-                                   ;;"src/optparse.coffee"
-                                   ;;"src/repl.coffee"
-                                   ;;"src/scope.coffee")
-                      ;;(("([A-Za-z]+):[ ]+(@?[A-Z-a-z.[]]()+)$" _ key val)
-                       ;;(string-append "{" key ": " val "}"))
-                      ;;(("merge\\(o, indent: @idt\\(\\)\\)")
-                       ;;"merge(o, {indent: @idt()})")))))
-;;([A-Za-z]|\\[|\\])
-;; "([A-Za-z]+):[ ]+(@?[A-Za-z.()]|\\[|\\])+,[ ]+([A-Z-a-z]+):[ ]+(@?[A-Za-z.()]|\\[|\\])$""
-;;(define pat "([A-Za-z]+):[ ]+(@?[][ A-Za-z0-9.()>-])+,[ ]?([A-Za-z]+):[ ]+(@?[][ A-Za-z0-9.()>-])+$")
-(define lvalue "[A-Za-z0-9]+")
-(define rvalue "@?(->)?[][ 'A-Za-z0-9.]+(\\([A-Za-z0-9]*\\))?")
-(define single
-  (string-append lvalue ":[ ]+" rvalue "$"))
-(define double
-  (string-append lvalue ":[ ]+"
-                 rvalue ",[ ]+"
-                 lvalue ":[ ]+"
-                 rvalue "$"))
-(define triple
-  (string-append lvalue ":[ ]+"
-                 rvalue ",[ ]+"
-                 lvalue ":[ ]+"
-                 rvalue ",[ ]+"
-                 lvalue ":[ ]+"
-                 rvalue "$"))
 
 
-(define-public boot26-check (coffee-replicate coffee-script-boot26 "coffee-script" "coffee-script-boot26r" ))
+(define boot29 (bootstrap coffee-script-boot28 "coffee-script-boot29"))
+(define-public coffee-script-boot29 (boot29
+                                     "129e950"
+                                     "11r6mbnjvcyfmhz5xi9w9d9h0xhl12b6jh7w1i960jlzv8xrfb5v"))
+(define-public boot29-check (coffee-replicate coffee-script-boot29 "coffee-script" "coffee-script-boot29r" ))
+
+
+(define boot30 (bootstrap coffee-script-boot29 "coffee-script-boot30"))
+(define-public coffee-script-boot30 (boot30
+                                     "4ddd65a"
+                                     "13zw49b373rkz1ynhwgb41q0n6rdazwbc23crmzgypdsm7cp7lw5"))
+(define-public boot30-check (coffee-replicate coffee-script-boot30 "coffee-script" "coffee-script-boot30r" ))
+
+(define boot31 (bootstrap coffee-script-boot30 "coffee-script-boot31"))
+(define coffee-script-boot31-helper (boot31
+                                     "87693d8"
+                                     "156rs10q5pg53aqz6xf97vmcz6cjsg02m3m5lgxmlivsrmrfx93x"))
+
+(define-public coffee-script-boot31
+  (patch-sources #:prev coffee-script-boot31-helper
+                 #:patch "coffeescript-backport-not-instanceof.patch"))
+(define-public boot31-check (coffee-replicate coffee-script-boot31 "coffee-script" "coffee-script-boot31r" ))
+
+
+(define boot32 (bootstrap coffee-script-boot31 "coffee-script-boot32"))
+(define-public coffee-script-boot32 (boot32
+                                     "b2313be"
+                                     "02kp2584ixxvwy1afsxrnpfwds66yqrcc6gbgvw4f03ygcx321hn"
+                                     ))
+
+(define-public boot32-check (coffee-replicate coffee-script-boot32 "coffee-script" "coffee-script-boot32r" ))
+
+
+(define boot33 (bootstrap coffee-script-boot32 "coffee-script-boot33"))
+(define-public coffee-script-boot33 (boot33
+                                     "493fa7d"
+                                     "047qnx6qvrb3rypdl9ksn3pvr2hp9wgj99mw1six7gqhyc7ybf0l"))
+
+(define-public boot33-check (coffee-replicate coffee-script-boot33 "coffee-script" "coffee-script-boot33r" ))
+
+
+(define boot34 (bootstrap coffee-script-boot33 "coffee-script-boot34"))
+(define coffee-script-boot34-helper (boot34
+                                     "380bee9"
+                                     "0mn0gkp5hgmnv130vgr8affiidhk1ybr9xr2r4ah241v61563lis"))
+
+
+(define-public coffee-script-boot34
+  (patch-sources #:prev coffee-script-boot34-helper
+                 #:patch "coffeescript-backport-lexer-inof-forinof.patch"))
+
+(define-public boot34-check (coffee-replicate coffee-script-boot34 "coffee-script" "coffee-script-boot34r" ))
+
+
+(define boot35 (bootstrap coffee-script-boot34 "coffee-script-boot35"))
+(define coffee-script-boot35-helper (boot35
+                                     "acafb1b"
+                                     "1ml8haprj0akifvnd26lsijp78s42j80bq77wh8rpamiv50bkqmf"
+                                     ))
+
+;;coffeescript-backport-if-else-chain.patch
+(define-public coffee-script-boot35
+  (patch-sources #:prev coffee-script-boot35-helper
+                 #:patch "coffeescript-backport-if-else-chain.patch"))
+
+(define-public boot35-check (coffee-replicate coffee-script-boot35 "coffee-script" "coffee-script-boot35r" ))
+;;~/Projects/guix/gnu/packages/patches/coffeescript-backport-lexer-inof-forinof.patch
+
+(define boot36 (bootstrap coffee-script-boot35 "coffee-script-boot36"))
+(define-public coffee-script-boot36 (boot36
+                                     "2f7c076"
+                                     "1gccmx8wi4s06vdr157h6lmqdqnjajs7brcri2f80pkbkx258frf"
+                                     ))
+
+(define-public boot36-check (coffee-replicate coffee-script-boot36 "coffee-script" "coffee-script-boot36r" ))
+
+(define boot37 (bootstrap coffee-script-boot36 "coffee-script-boot37"))
+(define-public coffee-script-boot37 (boot37
+                                     "a8da321"
+                                     "1rngdd4y4f7mghbh7mm221d8ss6qaz9ksbd2hj7qk2gjvxm53y4v"
+                                     ))
+
+(define-public boot37-check (coffee-replicate coffee-script-boot37 "coffee-script" "coffee-script-boot37r" ))
+
+
+(define boot38 (bootstrap coffee-script-boot37 "coffee-script-boot38" ;;node-0.3.0
+                          ))
+(define-public coffee-script-boot38 (boot38
+                                     "bfc236f"
+                                     "0nf4p2mzdbh847f88nxk6i4ynvjk35bz7x3zjq3gvzsilmkq0l4v"
+                                     ))
+
+(define-public boot38-check (coffee-replicate coffee-script-boot38 "coffee-script" "coffee-script-boot38r" ))
+
+
+(define boot39 (bootstrap coffee-script-boot38 "coffee-script-boot39" node-0.3.0))
+(define coffee-script-boot39-helper (boot39
+                                     "85c8a67"
+                                     "1w08a6xc29xx7147ad65f7zf5d72ijj8rv75pz9avbnhy65afp15"))
+
+(define-public coffee-script-boot39
+  (patch-sources #:prev coffee-script-boot39-helper
+                 #:patch "coffeescript-backport-destructuring.patch"))
+
+(define-public boot39-check (coffee-replicate coffee-script-boot39 "coffee-script" "coffee-script-boot39r" ))
+
+(define boot40 (bootstrap coffee-script-boot39 "coffee-script-boot40"))
+(define-public coffee-script-boot40 (boot40 ;;has a broken repl, fixed in later commit
+                                     "b32a758"
+                                     "0ki3cp8yj1jy5sihyfzc09i7ll1w34pwkrjmmdjkmhhnf2wp6mw2"
+                                     ))
+
+(define-public boot40-check (coffee-replicate coffee-script-boot40 "coffee-script" "coffee-script-boot40r" ))
+
+
+(define boot41 (bootstrap coffee-script-boot40 "coffee-script-boot41"))
+(define coffee-script-boot41-helper (boot41
+                                     "b2be475"
+                                     "1kj9wslyxddnb32i72y9jjx4701vjihyg2nk3fh7vj17qh23hd0z"))
+
+
+(define-public coffee-script-boot41
+  (patch-sources #:prev coffee-script-boot41-helper
+                 #:patch "coffeescript-backport-leading-then-expression.patch"))
+;;coffeescript-backport-leading-then-expression.patch
+(define-public boot41-check (coffee-replicate coffee-script-boot41 "coffee-script" "coffee-script-boot41r" ))
+
+
+(define boot42 (bootstrap coffee-script-boot41 "coffee-script-boot42"))
+(define coffee-script-boot42-helper (boot42
+                                     "ecd4722"
+                                     "0wal456lzsndknca347g8z1va10k5999dd788wc7lrib2zl2yawb"
+                                     ))
+(define-public coffee-script-boot42
+  (patch-sources #:prev coffee-script-boot42-helper
+                                        #:patch "coffeescript-backport-default-arguments.patch"
+                 ))
+;coffeescript-backport-default-arguments.patch
+
+
+(define-public boot42-check (coffee-replicate coffee-script-boot42 "coffee-script" "coffee-script-boot42r" ))
+
+
+(define boot43 (bootstrap coffee-script-boot42 "coffee-script-boot43"))
+(define coffee-script-boot43-helper (boot43
+                                     "a2d3311"
+                                     "0qqj2jjr9lys9mvzk49hck588yh1qijlv80wab3gyjxpfj8n9anj"
+                                     ))
+
+(define-public coffee-script-boot43
+  (patch-sources #:prev coffee-script-boot43-helper
+                 #:patch "coffeescript-backport-executable-class-body.patch"
+                 ))
+;;might not be able to replicate
+;;(define-public boot43-check (coffee-replicate coffee-script-boot43 "coffee-script" "coffee-script-boot43r" ))
+
+(define boot44 (bootstrap coffee-script-boot43 "coffee-script-boot44"))
+(define-public coffee-script-boot44 (boot44
+                                     "3059db8"
+                                     "0cpqrnk2c6rpkip407xs4ly3rw0lv47gq6lgf34vsm5bv8spsrh9"))
+
+(define-public boot44-check (coffee-replicate coffee-script-boot44 "coffee-script" "coffee-script-boot44r" ))
+
+
+(define boot45 (bootstrap coffee-script-boot44 "coffee-script-boot45"))
+(define coffee-script-boot45-helper (boot45
+                                     "2aedbc2"
+                                     "100qs8x25dbvf4mwj7kqz4j7p1py4917ykqndwmaagg47nyanrxv")) 
+
+(define-public coffee-script-boot45
+  (patch-sources #:prev coffee-script-boot45-helper
+                 #:patch "coffeescript-backport-static-value-syntax.patch"
+                 ))
+
+(define-public boot45-check (coffee-replicate coffee-script-boot45 "coffee-script" "coffee-script-boot45r" ))
+
+(define boot46 (bootstrap coffee-script-boot45 "coffee-script-boot46"))
+(define coffee-script-boot46-helper (boot46
+                                     "15bdcf7"
+                                     "0jmlk3v9nhm1r0npx6dydaw8qsv2sndx0cfqbcpvybrsxhrbxr7q"))
+(define-public coffee-script-boot46
+  (patch-sources #:prev coffee-script-boot46-helper
+                 #:patch "coffeescript-backport-explicit-constructor-syntax.patch"
+                 ))
+;;might not be able to replicate
+;;(define-public boot46-check (coffee-replicate coffee-script-boot46 "coffee-script" "coffee-script-boot46r" ))
+
+(define boot47 (bootstrap coffee-script-boot46 "coffee-script-boot47"))
+(define-public coffee-script-boot47 (boot47
+                                     "a1aaa44"
+                                     "18f05apxvqqz3rdh3sxczdi3vw5nm9q29qs20idifgmf37j8dcr3"))
+
+(define-public boot47-check (coffee-replicate coffee-script-boot47 "coffee-script" "coffee-script-boot47r" ))
+
+(define boot48 (bootstrap coffee-script-boot47 "coffee-script-boot48"))
+(define coffee-script-boot48-helper (boot48
+                                     "9f708ad"
+                                     "17bkbxhf5gar8g5ciaqwmxswhz7p0dcp07vycw79wk0v2iq2q974"))
+(define-public coffee-script-boot48
+  (patch-sources #:prev coffee-script-boot48-helper
+                 #:patch "coffeescript-backport-range-literals.patch"
+                 ))
+
+;;might not be able to replicate
+;;(define-public boot48-check (coffee-replicate coffee-script-boot48 "coffee-script" "coffee-script-boot48r" ))
+
+
+(define boot49 (bootstrap coffee-script-boot48 "coffee-script-boot49"))
+(define-public coffee-script-boot49 (boot49
+                                     "fc64fa4"
+                                     "00visn0j8zq11i9a5pc9f3ww06zwp8gn9y23linvyvxwh9fmmfyc"))
+
+(define-public boot49-check (coffee-replicate coffee-script-boot49 "coffee-script" "coffee-script-boot49r" ))
+
+(define boot50 (bootstrap coffee-script-boot49 "coffee-script-boot50"))
+(define coffee-script-boot50-helper (boot50
+                                     "4afa6a2"
+                                     "1sdl8w63l36hs3v1dj8xcg0kal6i5kmmg33j1rv6wpphn77mwf1j"))
+
+(define-public coffee-script-boot50
+  (patch-sources #:prev coffee-script-boot50-helper
+                 #:patch "coffeescript-backport-forall-loop-syntax-change.patch"
+                 ))
+;;might not be able to replicate
+;;(define-public boot50-check (coffee-replicate coffee-script-boot50 "coffee-script" "coffee-script-boot50r" ))
+
+
+;;;CS 1.0.0, we did it :-)
+(define boot51 (bootstrap coffee-script-boot50 "coffee-script-boot51"))
+(define-public coffee-script-boot51 (boot51
+                                     "33d2577"
+                                     "16dg3z2885qzzdzkldlvfcgd97lxrim6zs2bi5yyal2a9y3bfs8c"))
+
+(define-public boot51-check (coffee-replicate coffee-script-boot51 "coffee-script" "coffee-script-boot51r" ))
