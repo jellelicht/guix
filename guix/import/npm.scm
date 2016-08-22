@@ -36,6 +36,7 @@
   #:use-module (ice-9 regex)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 control)
+  #:use-module (ice-9 vlist)
   #:use-module (rnrs bytevectors)
   #:use-module (ice-9 binary-ports)
   #:use-module (rnrs io ports)
@@ -47,12 +48,10 @@
   #:use-module (gnu packages)
   #:use-module (guix build-system node)
   #:export (npm->guix-package
-            recursive-import
-            ;;%npm-updater
-            ))
+            recursive-import))
 
 (define scheme-pat
-  (make-regexp "[a-zA-Z][a-zA-Z0-9+.-]*"))
+  "[a-zA-Z][-a-zA-Z0-9+.-]*")
 (define host-pat
   "[a-zA-Z0-9.-]+")
 (define authority-pat
@@ -60,7 +59,7 @@
 (define path-pat
   (make-regexp "[^?#]*"))
 (define user-project-pat
-  "([a-zA-Z][a-zA-Z0-9+.0]*)/([a-zA-Z][a-zA-Z0-9+.0]*)")
+  "([a-zA-Z][-a-zA-Z0-9+.]*)/([a-zA-Z][-a-zA-Z0-9+.]*)")
 
 (define gh-shorthand-regexp
   (make-regexp (format #f "^~a$" user-project-pat)))
@@ -71,23 +70,20 @@
 (define gitlab-shorthand-regexp
   (make-regexp (format #f "^gitlab:~a$" user-project-pat)))
 (define pseudo-url-regexp
-  (make-regexp (format #f "^(~a)@(~a):(~a)/(~a).git$"
-                       user-project-pat
+  (make-regexp (format #f "^(~a)@(~a):(~a)\\.git$"
+                       scheme-pat
                        host-pat
-                       user-project-pat
                        user-project-pat)))
 
 (define (pseudo-to-real-url pseudo-url-match)
-  (let* ((m         pseudo-url-match)
-         (protocol (match:substring m 1))
-         (hostname (match:substring m 2))
-         (user     (match:substring m 3))
-         (project  (match:substring m 4)))
-    (format #f "~a://~a/~a/~a.git"
+  (let* ((m            pseudo-url-match)
+         (protocol     (match:substring m 1))
+         (hostname     (match:substring m 2))
+         (user-project (match:substring m 3)))
+    (format #f "~a://~a/~a.git"
             protocol
             hostname
-            user
-            project)))
+            user-project)))
 
 (define (make-gh-url user project)
   (format #f "https://github.com/~a/~a.git" user project))
@@ -97,7 +93,12 @@
   (format #f "https://gitlab.com/~a/~a.git" user project))
 
 (define (normalise-url url)
-  (cond ((or (regexp-exec gh-shorthand-regexp url)
+  (cond ((regexp-exec pseudo-url-regexp url)
+         ;; git@host:user/project.git
+         =>
+         (lambda (match)
+           (pseudo-to-real-url match)))
+        ((or (regexp-exec gh-shorthand-regexp url)
          (regexp-exec alternative-gh-shorthand-regexp url))
          ;; user/project or github:user/project
          => (lambda (match)
@@ -138,49 +139,6 @@
               url))))
         (else
          url)))
-
-;; (define (normalise-git-url url)
-;;   "Return a simple canonical url for the git repository at URL."
-;;   ;;XXX: Weird npm urls need to be normalised
-;;   ;;Not very robust right now
-;;   ;; "repository": "npm/npm"
-;;   ;; "repository": "gist:11081aaa281"
-;;   ;; "repository": "bitbucket:example/repo"
-;;   ;;"repository": "gitlab:another/repo"
-;;   ;; user/project
-;;   ;; git@github.com:user/project.git
-;;   ;; git://github.com/user/project.git
-;;   ;; git+ssh://user@hostname:project.git
-;;   ;; git+ssh://user@hostname/project.githttps://github.com/gulpjs/gulp-util.git
-;;   ;; git+http://user@hostname/project/blah.git
-;;   ;; git+https://user@hostname/project/blah.git
-;;   ;; TODO: should support the user/repo shorthand for github
-;;   (let ((uri (string->uri url)))
-;;     (if (uri? uri)
-;;         (case (uri-scheme uri)
-;;           ((git+ssh)
-;;            (if (equal? (uri-host uri) "github.com")
-;;                (normalise-git-url (uri->string (set-fields uri
-;;                                                            ((uri-scheme) 'git))))
-;;                url))
-;;           ((git+https git+http)
-;;            (substring url 4)) ; ignore git+ part of uri scheme
-;;           ((https)
-;;            (if (and (equal? (uri-host uri) "github.com") (not (string-suffix? ".git" (uri-path uri))))
-;;                (uri->string (set-fields uri
-;;                                         ((uri-userinfo) #f)
-;;                                         ((uri-path) (string-append (uri-path uri) ".git"))))
-;;                (uri->string (set-fields uri
-;;                                         ((uri-userinfo) #f))))) ;dont use userinfo when using the https interface
-;;           ((git)
-;;            (if (equal? (uri-host uri) "github.com")
-;;                ; Try the https github interface first, because it works with both git-fetch and url-fetch
-;;                (normalise-git-url (uri->string (set-fields uri
-;;                                                            ((uri-scheme) 'https))))
-;;                uri))
-;;           (else
-;;            url))
-;;         url)))
 
 ;; Taken and tweaked from (guix import github)
 (define %github-token
@@ -236,11 +194,13 @@ GITHUB-REPO"
     (if (eq? json #f)
         (if token
             (error "Error downloading release information through the GitHub
-API when using a GitHub token to download:" github-repo "@" version " via " api-url)
+API when using a GitHub token to download:" github-repo "@" version " via "
+api-url)
             (error "Error downloading release information through the GitHub
 API. This may be fixed by using an access token and setting the environment
 variable GUIX_GITHUB_TOKEN, for instance one procured from
-https://github.com/settings/tokens. E: " github-repo "@" version " via " api-url))
+https://github.com/settings/tokens. E: " github-repo "@" version " via "
+api-url))
         (let ((proper-release
                (filter
                 (lambda (x)
@@ -479,21 +439,23 @@ npm list of dependencies DEPENDENCIES."
 (define (extract-license package-json)
   (let ((license-entry (assoc-ref package-json "license"))
         (license-legacy (assoc-ref package-json "licenses")))
-    ;(display (string-append "Wut:" license-entry license-legacy))
-    ;;(format #t "We had: ~a, and got: ~a ~a" package-json license-entry license-legacy)
     (cond
      ((string? license-entry)
       (spdx-string->license license-entry))
      ((list? license-entry)
       (spdx-string->license (assoc-ref license-entry "type")))
+     ((string? license-legacy)
+      (spdx-string->license license-legacy))
      ((and license-legacy (positive? (length license-legacy)))
-      `(list ,@(map (lambda (l) (spdx-string->license (assoc-ref l "type"))) license-legacy)))
+      `(list ,@(map
+                (lambda (l) (spdx-string->license (assoc-ref l "type")))
+                license-legacy)))
      (else
       #f))))
 
 (define (npm->guix-package package-name)
   "Fetch the metadata for PACKAGE-NAME from registry.npmjs.com and return the
- `package' s-expression corresponding to that package, or #f on failure."
+ `package' s-expression corresponding to that package, or  on failure."
   (let ((package (npm-fetch package-name)))
     (if package
         (let* ((name (assoc-ref package "name"))
@@ -507,7 +469,7 @@ npm list of dependencies DEPENDENCIES."
                (npm-dependencies
                 (append
                  (extract-npm-dependencies raw-dependencies)
-                 ;;(extract-npm-dependencies raw-dev-dependencies)
+                 (extract-npm-dependencies raw-dev-dependencies)
                  ))
                (description (assoc-ref package "description"))
                (home-page (assoc-ref package "homepage"))
@@ -520,37 +482,46 @@ npm list of dependencies DEPENDENCIES."
         (error "Could not download metadata:" package-name))))
 
 (define* (recursive-import package-name)
-  (define (iter name imported)
-    ;; FIXME: this might fail, so catch errors
-    (receive (package dependencies)
-        (catch #t
-          (lambda () 
-            (npm->guix-package name))
-          (lambda (key . parameters)
-            (format (current-error-port)
-                    "Uncaught throw to '~a: ~a\n" key parameters)
-            (values (node-package-name name) '())))
-      (if package
-          (let* ((new-entry    (cons name (list package)))
-                 (imported     (cons new-entry imported))
-                 (dependencies (filter (lambda (dependency)
-                                         (and (not (assoc dependency imported))
-                                              (null? (find-packages-by-name (node-package-name dependency)))))
-                                       dependencies)))
-            (fold iter imported dependencies))
-          (begin
-            (format #t "error: failed to import package ~a from archive npm.\n" name)
-            imported))))
-  (iter package-name '()))
+  "Recursively fetch the metadata for PACKAGE-NAME and its dependencies from
+registry.npmjs.com and return a list of 'package-name, package s-expression'
+tuples."
+  (define (seen? item seen)
+    (or (vhash-assoc item seen)
+        (not (null? (find-packages-by-name (node-package-name item))))))
+  (let loop ((todo (list package-name))
+             (seen vlist-null)
+             (result '()))
+    (match todo
+      (()
+       ;; As RESULT was built using cons, it should be reversed
+       (reverse result))
+      ((package-name rest ...)
+       (if (seen? package-name seen)
+           (loop rest
+                 seen
+                 result)
+           (let ((seen (vhash-cons package-name package-name seen)))
+             (receive (package dependencies)
+                 (catch #t
+                   (lambda ()
+                     (npm->guix-package package-name))
+                   (lambda (key . parameters)
+                     (format (current-error-port)
+                             "Uncaught throw to '~a: ~a\n" key parameters)
+                     (values #f #f)))
+               (if package
+                   (loop (append rest dependencies)
+                         seen
+                         (cons (list package-name package) result))
+                   (begin
+                     (format
+                      #t "error: failed to import package ~a from archive npm.\n"
+                      package-name)
+                     (loop rest
+                           seen
+                           result))))))))))
 
 (define (npm-package? package)
   "Return true if PACKAGE is an npm package from NPM."
   (let ((build-system (package-build-system package)))
     (eq? build-system node-build-system)))
-
-;; (define %npm-updater
-;;   (upstream-updater
-;;    (name 'npm)
-;;    (description "Updater for npm packages")
-;;    (pred node-package?)
-;;    (latest latest-source-release)))
