@@ -4666,6 +4666,16 @@ Installation is done by copying the files manually.
 
 Which D compiler is used can be specified with the @code{#:ldc}
 parameter which defaults to @code{ldc}.
+
+@defvr {Scheme Variable} node-build-system
+This variable is exported by @code{(guix build-system node)}.  It
+implements the build procedure used by @uref{http://nodejs.org,
+Node.js}, which implements an approximation of the @code{npm install}
+command, followed by an @code{npm test} command.
+
+Which Node.js package is used to interpret the @code{npm} commands can
+be specified with the @code{#:node} parameter which defaults to
+@code{node}.
 @end defvr
 
 @defvr {Scheme Variable} emacs-build-system
