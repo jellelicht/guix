@@ -3074,6 +3074,17 @@ Which Haskell compiler is used can be specified with the @code{#:haskell}
 parameter which defaults to @code{ghc}.
 @end defvr
 
+@defvr {Scheme Variable} node-build-system
+This variable is exported by @code{(guix build-system node)}.  It
+implements the build procedure used by @uref{http://nodejs.org,
+Node.js}, which implements an approximation of the @code{npm install}
+command, followed by an @code{npm test} command.
+
+Which Node.js package is used to interpret the @code{npm} commands can
+be specified with the @code{#:node} parameter which defaults to
+@code{node}.
+@end defvr
+
 @defvr {Scheme Variable} emacs-build-system
 This variable is exported by @code{(guix build-system emacs)}.  It
 implements an installation procedure similar to the packaging system
@@ -4863,6 +4874,36 @@ package name by an at-sign and a version number as in the following example:
 
 @example
 guix import hackage mtl@@2.1.3.1
+@end example
+
+@item npm
+@cindex npm
+Import metadata from @uref{https://www.npmjs.com/, npm}@footnote{This
+functionality requires Guile-JSON to be installed.
+@xref{Requirements}.}.  Information is taken from the JSON-formatted
+description available at @code{npmjs.com} and includes most relevant
+information, including runtime dependencies.  There are some caveats,
+however.  The metadata doesn't distinguish between synopses and
+descriptions, so the same string is used for both fields.  Additionally,
+the details of non-npm dependencies required to build native extensions
+is unavailable and left as an exercise to the packager.  Finally, the
+importer only looks at the latest released versions of packages.  In
+some cases, one or several older versions have to be packaged with
+manual intervention.
+
+The command below imports metadata for the @code{minimist} npm package:
+
+@example
+guix import npm minimist
+@end example
+
+The importer implements an experimental recursive subsystem, allowing
+for a significant of npm packages to be imported.  The command below
+imports metadata for the @code{optimist} npm package, as well as its
+dependencies.
+
+@example
+guix import npm -r optimist
 @end example
 
 @item elpa

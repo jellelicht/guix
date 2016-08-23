@@ -1,0 +1,59 @@
+From 2da9150250cefdc1d7d44f4af4ff18ea347fb8f7 Mon Sep 17 00:00:00 2001
+From: Jelle Licht <jlicht@fsfe.org>
+Date: Sun, 21 Aug 2016 08:53:25 +0200
+Subject: [PATCH] [BACKPORT] explicit constructor syntax
+To: guix-devel@gnu.org
+
+---
+ src/nodes.coffee | 28 ++++++++++++++++------------
+ 1 file changed, 16 insertions(+), 12 deletions(-)
+
+diff --git a/src/nodes.coffee b/src/nodes.coffee
+index c880069..a37cfee 100644
+--- a/src/nodes.coffee
++++ b/src/nodes.coffee
+@@ -684,11 +684,22 @@ exports.Class = class Class extends Base
+         base = assign.variable.base
+         delete assign.context
+         func = assign.value
+-        unless assign.variable.this
+-          assign.variable = new Value(new Literal(name), [new Accessor(base, 'proto')])
+-        if func instanceof Code and func.bound
+-          @boundFuncs.push base
+-          func.bound = no
++        if base.value is 'constructor'
++          if @ctor
++            throw new Error 'cannot define more than one constructor in a class'
++          if func.bound
++            throw new Error 'cannot define a constructor as a bound function'
++          if func instanceof Code
++            @ctor = func
++          else
++            @ctor = new Assign(new Value(new Literal name), func)
++          assign = null
++        else
++          unless assign.variable.this
++            assign.variable = new Value(new Literal(name), [new Accessor(base, 'proto')])
++          if func instanceof Code and func.bound
++            @boundFuncs.push base
++            func.bound = no
+       assign
+ 
+   # Walk the body of the class, looking for prototype properties to be converted.
+@@ -698,13 +709,6 @@ exports.Class = class Class extends Base
+         for node, i in exps = child.expressions
+           if node instanceof Value and node.isObject(true)
+             exps[i] = compact @addProperties node, name
+-          else if node instanceof Code
+-            if @ctor
+-              throw new Error 'cannot define more than one constructor in a class'
+-            if node.bound
+-              throw new Error 'cannot define a constructor as a bound function'
+-            @ctor = node
+-            exps[i] = null
+         child.expressions = exps = compact flatten exps
+ 
+   # Make sure that a constructor is defined for the class, and properly
+-- 
+2.9.3
+

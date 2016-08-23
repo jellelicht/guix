@@ -1,0 +1,53 @@
+From d10256934b7b407e87c481483a71a17af850fb67 Mon Sep 17 00:00:00 2001
+From: Jelle Licht <jlicht@fsfe.org>
+Date: Sun, 21 Aug 2016 04:59:17 +0200
+Subject: [PATCH] [BACKPORT] if-else-chain
+To: guix-devel@gnu.org
+
+---
+ src/nodes.coffee | 17 +++++++----------
+ 1 file changed, 7 insertions(+), 10 deletions(-)
+
+diff --git a/src/nodes.coffee b/src/nodes.coffee
+index dafe5ce..141e5e6 100644
+--- a/src/nodes.coffee
++++ b/src/nodes.coffee
+@@ -1526,11 +1526,11 @@ exports.If = class If extends Base
+   elseBodyNode: -> @elseBody?.unwrap()
+ 
+   # Rewrite a chain of **Ifs** to add a default case as the final *else*.
+-  addElse: (elseBody, statement) ->
++  addElse: (elseBody) ->
+     if @isChain
+-      @elseBodyNode().addElse elseBody, statement
++      @elseBodyNode().addElse elseBody
+     else
+-      @isChain = elseBody instanceof If
++      @isChain  = elseBody instanceof If
+       @elseBody = @ensureExpressions elseBody
+     this
+ 
+@@ -1566,16 +1566,13 @@ exports.If = class If extends Base
+     condO    = merge o
+     o.indent = @idt 1
+     o.top    = true
+-    ifDent   = if child or (top and not @isStatement(o)) then '' else @idt()
+-    comDent  = if child then @idt() else ''
+-    body     = @body.compile(o)
+-    ifPart   = "#{ifDent}if (#{ @compileCondition(condO) }) {\n#{body}\n#{@tab}}"
++    ifPart   = "if (#{ @compileCondition condO }) {\n#{ @body.compile o }\n#{@tab}}"
++    ifPart   = @tab + ifPart unless child
+     return ifPart unless @elseBody
+-    elsePart = if @isChain
+-      ' else ' + @elseBodyNode().compile(merge(o, {indent: @idt(), chainChild: true}))
++    ifPart + if @isChain
++      ' else ' + @elseBodyNode().compile merge o, indent: @tab, chainChild: true
+     else
+       " else {\n#{ @elseBody.compile(o) }\n#{@tab}}"
+-    "#{ifPart}#{elsePart}"
+ 
+   # Compile the If as a conditional operator.
+   compileExpression: (o) ->
+-- 
+2.9.3
+
