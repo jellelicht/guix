@@ -70,6 +70,7 @@ GNU_SYSTEM_MODULES =				\
   %D%/packages/ci.scm				\
   %D%/packages/cmake.scm			\
   %D%/packages/code.scm				\
+  %D%/packages/coffee-script.scm		\
   %D%/packages/commencement.scm			\
   %D%/packages/compression.scm			\
   %D%/packages/conkeror.scm			\
