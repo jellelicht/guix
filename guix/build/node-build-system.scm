@@ -94,9 +94,9 @@ is an npm global install."
     (replace 'build build)
     ;(delete 'build)
     (replace 'install install)
-    (delete 'check)
+    ;;(delete 'check)
     (delete 'strip) ;;
-    ;;(replace 'check check)
+    (replace 'check check)
     ))
 
 (define* (node-build #:key inputs (phases %standard-phases)
