@@ -239,12 +239,14 @@ MODULES +=					\
   guix/import/github.scm   			\
   guix/import/gnome.scm				\
   guix/import/json.scm				\
+  guix/import/npm.scm				\
   guix/import/opam.scm				\
   guix/import/pypi.scm				\
   guix/import/stackage.scm			\
   guix/scripts/import/crate.scm			\
   guix/scripts/import/gem.scm			\
   guix/scripts/import/json.scm  		\
+  guix/scripts/import/npm.scm			\
   guix/scripts/import/opam.scm			\
   guix/scripts/import/pypi.scm			\
   guix/scripts/import/stackage.scm		\
@@ -396,7 +398,8 @@ SCM_TESTS += 					\
   tests/opam.scm				\
   tests/cpan.scm				\
   tests/gem.scm					\
-  tests/crate.scm
+  tests/crate.scm				\
+  tests/npm.scm
 
 endif
 
