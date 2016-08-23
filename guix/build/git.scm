@@ -18,7 +18,12 @@
 
 (define-module (guix build git)
   #:use-module (guix build utils)
-  #:export (git-fetch))
+  #:use-module (ice-9 popen)
+  #:use-module (ice-9 regex)
+  #:use-module (srfi srfi-26)
+  #:use-module (srfi srfi-1)
+  #:export (git-fetch
+            git-fetch-tags))
 
 ;;; Commentary:
 ;;;
@@ -60,5 +65,30 @@ recursively.  Return #t on success, #f otherwise."
                 ;; directory needs to be taken out.
                 (delete-file-recursively ".git")
                 #t)))))
+
+(define* (git-fetch-tags url #:key (git-command "git"))
+  "Fetch the list of tags from URL. Return the list of tags on success, #f
+otherwise."
+  (define (ls-remote)
+    (let ((pipe (open-pipe* OPEN_READ git-command "ls-remote" "-t" url)))
+      (dynamic-wind
+        (const #t)
+        (lambda ()
+          (while (not (eof-object? (peek-char pipe)))
+            (write-char (read-char pipe)))
+          #t)
+        (lambda ()
+          (unless (zero? (status:exit-val (close-pipe pipe)))
+            (error "failed to list remote tags" url))))))
+
+  (define tag-regexp
+    (make-regexp "refs/tags/([A-Za-z0-9.-]+)$")) ;;XXX: Might not catch all valid tags
+
+  (setenv "GIT_SSL_NO_VERIFY" "true")
+  (let* (
+         (raw-output (with-output-to-string ls-remote))
+         (lines      (string-split raw-output #\newline))
+         (raw-tags      (filter-map  (cut regexp-exec tag-regexp <>) lines)))
+    (map (cut match:substring <> 1) raw-tags)))
 
 ;;; git.scm ends here
