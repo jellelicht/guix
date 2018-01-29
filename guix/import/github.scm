@@ -30,7 +30,9 @@
   #:use-module (guix upstream)
   #:use-module (guix http-client)
   #:use-module (web uri)
-  #:export (%github-updater))
+  #:export (%github-updater
+            %github-token
+            json-fetch*))
 
 (define (find-extension url)
   "Return the extension of the archive e.g. '.tar.gz' given a URL, or

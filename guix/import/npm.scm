@@ -19,8 +19,10 @@
 
 (define-module (guix import npm)
   #:use-module (json)
+  #:use-module (guix import github)
   #:use-module ((guix licenses) #:select (expat))
   #:use-module (guix utils)
+  #:use-module (guix upstream)
   #:use-module (web uri)
   #:use-module (guix build git)
   #:use-module (guix base32)
@@ -47,8 +49,9 @@
   #:use-module (guix packages)
   #:use-module (gnu packages)
   #:use-module (guix build-system node)
+  ;#:use-module (semver)
   #:export (npm->guix-package
-            recursive-import))
+            npm-recursive-import))
 
 (define scheme-pat
   "[a-zA-Z][-a-zA-Z0-9+.-]*")
@@ -140,24 +143,6 @@
         (else
          url)))
 
-;; Taken and tweaked from (guix import github)
-(define %github-token
-  ;; Token to be passed to Github.com to avoid the 60-request per hour
-  ;; limit, or #f.
-  (make-parameter (getenv "GUIX_GITHUB_TOKEN")))
-
-(define (json-fetch* url)
-  "Return a list/hash representation of the JSON resource URL, or #f on
-failure."
-  (call-with-output-file "/dev/null"
-    (lambda (null)
-      (with-error-to-port null
-        (lambda ()
-          (call-with-temporary-output-file
-           (lambda (temp port)
-             (and (url-fetch url temp)
-                  (call-with-input-file temp json->scm)))))))))
-
 (define (heuristic-tags version)
   (list version
         (string-append "v" version)))
@@ -187,7 +172,7 @@ GITHUB-REPO"
                       "https://api.github.com/repos/"
                       (github-user-slash-repository github-repo)
                       "/tags"))
-         (json (json-fetch*
+         (json (json-fetch
                 (if token
                     (string-append api-url "?access_token=" token)
                     api-url))))
@@ -253,14 +238,14 @@ GITHUB-URL."
 
 (define (npm-fetch name)
   "Return metadata from the npm registry for package NAME."
-  (json-fetch (string-append *REGISTRY* name)))
+  (json-fetch-alist (string-append *REGISTRY* name)))
 
 (define (latest-source-release npm-meta)
   "Return the latest source release for NPM-META."
   (assoc-ref* npm-meta "dist-tags" "latest"))
 
-(define (node-package? package)
-  "Return true if PACKAGE is a node package."
+(define (npm-package? package)
+  "Return true if PACKAGE is an npm package."
   (string-prefix? "node-" (package-name package)))
 
 (define (source-uri npm-meta version)
@@ -282,67 +267,6 @@ package."
   (if (string-prefix? "node-" name)
       (snake-case name)
       (string-append "node-" (snake-case name))))
-
-(define (spdx-string->license str)
-  "Convert STR, a SPDX formatted license identifier, to a license object.
-   Return #f if STR does not match any known identifiers."
-  (match str
-    ("AGPL-1.0" 'AGPL-1.0)
-    ("AGPL-3.0" 'AGPL-3.0)
-    ("Apache-1.1" 'asl1.1)
-    ("Apache-2.0" 'asl2.0)
-    ("BSL-1.0" 'boost1.0)
-    ("BSD-2-Clause-FreeBSD" 'bsd-2)
-    ("BSD-3-Clause" 'bsd-3)
-    ("BSD-4-Clause" 'bsd-4)
-    ("CC0-1.0" 'cc0)
-    ("CC-BY-SA-4.0" 'cc-by-sa4.0)
-    ("CC-BY-SA-3.0" 'cc-by-sa3.0)
-    ("CC-BY-3.0" 'cc-by3.0)
-    ("CC-BY-2.0" 'cc-by2.0)
-    ("CDDL-1.0" 'cddl1.0)
-    ("CECILL-C" 'cecill-c)
-    ("Artistic-2.0" 'artistic2.0)
-    ("ClArtistic" 'clarified-artistic)
-    ("CPL-1.0" 'cpl1.0)
-    ("EPL-1.0" 'epl1.0)
-    ("MIT" 'expat)
-    ("FTL" 'freetype)
-    ("Giftware" 'giftware)
-    ("GPL-1.0" 'gpl1)
-    ("GPL-1.0+" 'gpl1+)
-    ("GPL-2.0" 'gpl2)
-    ("GPL-2.0+" 'gpl2+)
-    ("GPL-3.0" 'gpl3)
-    ("GPL-3.0+" 'gpl3+)
-    ("ISC" 'isc)
-    ("IJG" 'ijg)
-    ("Imlib2" 'imlib2)
-    ("IPA" 'ipa)
-    ("LGPL-2.0" 'lgpl2.0)
-    ("LGPL-2.0+" 'lgpl2.0+)
-    ("LGPL-2.1" 'lgpl2.1)
-    ("LGPL-2.1+" 'lgpl2.1+)
-    ("LGPL-3.0" 'lgpl3.0)
-    ("MPL-1.0" 'mpl1.0)
-    ("MPL-1.1" 'mpl1.1)
-    ("MPL-2.0" 'mpl2.0)
-    ("MS-PL" 'ms-pl)
-    ("NCSA" 'ncsa)
-    ("OpenSSL" 'openssl)
-    ("OLDAP-2.8" 'openldap2.8)
-    ("QPL-1.0" 'qpl)
-    ("Ruby" 'ruby)
-    ("SGI-B-2.0" 'sgifreeb2.0)
-    ("OFL-1.1" 'silofl1.1)
-    ("Sleepycat" 'sleepycat)
-    ("TCL" 'tcl/tk)
-    ("Vim" 'vim)
-    ("Unlicense" 'unlicense)
-    ("X11" 'x11)
-    ("ZPL-2.1" 'zpl2.1)
-    ("Zlib" 'zlib)
-    (_ #f)))
 
 (define (node-git-fetch url commit directory)
   "Fetch the git repo located at URL, clone into DIRECTORY and check out
@@ -418,7 +342,12 @@ SOURCE-URL."
        (synopsis ,description) ; no synopsis field in package.json files
        (description ,description)
        (home-page ,home-page)
-       (license ,license))))
+       (license ,license)
+       ,@(if (not (equal? (string-append "node-" name)
+                          (node-package-name name)))
+             `((properties ,`(,'quasiquote ((,'upstream-name . ,name)))))
+             '())
+       )))
 
 (define (extract-guix-dependencies dependencies)
   "Returns a list of dependencies according to the guix naming scheme, from
@@ -451,7 +380,7 @@ npm list of dependencies DEPENDENCIES."
      (else
       #f))))
 
-(define (npm->guix-package package-name)
+(define* (npm->guix-package package-name #:optional  (repo 'npm))
   "Fetch the metadata for PACKAGE-NAME from registry.npmjs.com and return the
  `package' s-expression corresponding to that package, or  on failure."
   (let ((package (npm-fetch package-name)))
@@ -472,48 +401,49 @@ npm list of dependencies DEPENDENCIES."
                (home-page (assoc-ref package "homepage"))
                (license (extract-license curr))
                (source-url (source-uri package version)))
-          (values 
+          (values
            (make-npm-sexp name version home-page description
                           dependencies dev-dependencies license source-url)
            npm-dependencies))
         (error "Could not download metadata:" package-name))))
 
-(define* (recursive-import package-name)
-  "Recursively fetch the metadata for PACKAGE-NAME and its dependencies from
-registry.npmjs.com and return a list of 'package-name, package s-expression'
-tuples."
-  (define (seen? item seen)
-    (or (vhash-assoc item seen)
-        (not (null? (find-packages-by-name (node-package-name item))))))
-  (let loop ((todo (list package-name))
-             (seen vlist-null)
-             (result '()))
-    (match todo
-      (()
-       ;; As RESULT was built using cons, it should be reversed
-       (reverse result))
-      ((package-name rest ...)
-       (if (seen? package-name seen)
-           (loop rest
-                 seen
-                 result)
-           (let ((seen (vhash-cons package-name package-name seen)))
-             (receive (package dependencies)
-                 (catch #t
-                   (lambda ()
-                     (npm->guix-package package-name))
-                   (lambda (key . parameters)
-                     (format (current-error-port)
-                             "Uncaught throw to '~a: ~a\n" key parameters)
-                     (values #f #f)))
-               (if package
-                   (loop (append rest dependencies)
-                         seen
-                         (cons (list package-name package) result))
-                   (begin
-                     (format
-                      #t "error: failed to import package ~a from archive npm.\n"
-                      package-name)
-                     (loop rest
-                           seen
-                           result))))))))))
+
+(define npm-guix-name (cut guix-name "node-" <>))
+
+(define* (npm-recursive-import package-name #:optional (repo 'npm))
+  (recursive-import package-name repo
+                    #:repo->guix-package npm->guix-package
+                    #:guix-name npm-guix-name))
+
+;; (define (package->upstream-name package)
+;;   "Return the upstream name of the PACKAGE."
+;;   (let* ((properties (package-properties package))
+;;          (upstream-name (and=> properties
+;;                                (cut assoc-ref <> 'upstream-name))))
+;;     (if upstream-name
+;;         upstream-name
+;;         #f))) ;; TODO: Use proper heuristics with package name and what-not
+
+
+(define (latest-release package)
+  "Return an <upstream-source> for the latest release of PACKAGE."
+
+  (define upstream-name
+    (package-name package))
+
+  (define meta
+    (npm-fetch upstream-name))
+
+  (and meta
+       (let ((version (latest-source-release meta)))
+         (upstream-source
+          (package (package-name package))
+          (version version)
+          (urls (source-uri meta version))))))
+
+(define %npm-updater
+  (upstream-updater
+   (name 'npm)
+   (description "Updater for Node Package Manager packages")
+   (pred npm-package?)
+   (latest latest-release)))

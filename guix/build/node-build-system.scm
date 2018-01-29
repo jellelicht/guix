@@ -40,25 +40,28 @@
   (call-with-input-file filename
     (lambda (port)
       (read-json port))))
+;; TODO: read package data, loop over deps and link them in from `inputs/propagated inputs' (in node_modules)
 
-(define (delete-minified-files . _)
-  "Delete minified files and their associated source mappings on the grounds
-   that they are build artifacts that Guix should generate from source code."
-  (for-each (lambda (file)
-              (format #t "deleting minified JavaScript file '~a'~%" file)
-              (delete-file file))
-            (find-files "." "(min\\.js|min\\.js\\.map|min\\.map)$"))
-  #t)
+;; (define (delete-minified-files . _)
+;;   "Delete minified files and their associated source mappings on the grounds
+;;    that they are build artifacts that Guix should generate from source code."
+;;   (for-each (lambda (file)
+;;               (format #t "deleting minified JavaScript file '~a'~%" file)
+;;               (delete-file file))
+;;             (find-files "." "(min\\.js|min\\.js\\.map|min\\.map)$"))
+;;   #t)
 
 (define* (build #:key outputs inputs #:allow-other-keys)
   "Build a new node module using the appropriate build system."
   ;; XXX: Develop a more robust heuristic, allow override
   (cond ((file-exists? "gulpfile.js")
-         (zero? (system* "gulp")))
+         (invoke "gulp"))
         ((file-exists? "gruntfile.js")
-         (zero? (system* "grunt")))
+         (invoke "grunt"))
         ((file-exists? "Makefile")
-         (zero? (system* "make")))
+         (invoke "make"))
+        ((file-exists? "package.json")
+         (invoke "npm" "run" "build"))
         (else
          #t)))
 
@@ -66,11 +69,10 @@
   "Run 'npm test' if TESTS?"
   (if tests?
       ;; Should only be enabled once we know that there are tests
-      (zero? (system* "npm" "test"))
-      #t))
+      (invoke "npm" "test")))
 
 (define* (install #:key outputs inputs global? #:allow-other-keys)
-  "Install the node module to the output store item. MODULENAME defines how
+  "Install the node module to the output store item. MODULENAME defines
 under which name the module will be installed, GLOBAL? determines whether this
 is an npm global install."
   (let* ((out         (assoc-ref outputs "out"))
@@ -89,14 +91,15 @@ is an npm global install."
 
 (define %standard-phases
   (modify-phases gnu:%standard-phases
-    (add-after 'unpack 'delete-minified-files delete-minified-files)
+    ;;(add-after 'unpack 'delete-minified-files delete-minified-files) ;;TODO: Use existing solution for this.
     (delete 'configure)
+    ;; TODO: link-dependencies (patch package.json + npm install?)
     (replace 'build build)
     ;(delete 'build)
     (replace 'install install)
-    ;;(delete 'check)
+    (delete 'check)
+    (add-after 'install 'check check)
     (delete 'strip) ;;
-    (replace 'check check)
     ))
 
 (define* (node-build #:key inputs (phases %standard-phases)

@@ -1,4 +1,6 @@
 ;;; GNU Guix --- Functional package management for GNU
+;;; Copyright © 2016, 2018 Jelle Licht <jlicht@fsfe.org>
+;;; Copyright © 2016 Ludovic Courtès <ludo@gnu.org>
 ;;; Copyright © 2015 David Thompson <davet@gnu.org>
 ;;;
 ;;; This file is part of GNU Guix.
@@ -21,9 +23,12 @@
   #:use-module (guix base32)
   #:use-module (guix hash)
   #:use-module (guix tests)
-  #:use-module ((guix build utils) #:select (delete-file-recursively))
+  #:use-module (guix grafts)
   #:use-module (srfi srfi-64)
   #:use-module (ice-9 match))
+
+;; Globally disable grafts because they can trigger early builds.
+(%graft? #f)
 
 (define test-json
   "{
@@ -55,7 +60,11 @@
   }
 }")
 
+(define test-source
+  "source-of-foo")
+
 (test-begin "npm")
+
 (test-assert "npm->guix-package"
   (mock ((guix import utils) url-fetch
            (lambda (url file-name)
