@@ -39,13 +39,14 @@ registry."
   ;; Build-side modules imported by default.
   `((guix build node-build-system)
     (guix build json)
+    (guix build union)
     ,@%gnu-build-system-modules)) ;; TODO: Might be not needed
 
 (define (default-node)
   "Return the default Node package."
   ;; Lazily resolve the binding to avoid a circular dependency.
   (let ((node (resolve-interface '(gnu packages node))))
-    (module-ref node 'node)))
+    (module-ref node 'node-lts)))
 
 (define* (lower name
                 #:key source inputs native-inputs outputs system target

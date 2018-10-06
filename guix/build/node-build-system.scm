@@ -21,14 +21,14 @@
   #:use-module ((guix build gnu-build-system) #:prefix gnu:)
   #:use-module (guix build utils)
   #:use-module (guix build json)
+  #:use-module (guix build union)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
   #:use-module (ice-9 regex)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-26)
   #:export (%standard-phases
-            node-build
-            npm-home))
+            node-build))
 
 ;; Commentary:
 ;;
@@ -40,18 +40,13 @@
   (call-with-input-file filename
     (lambda (port)
       (read-json port))))
-;; TODO: read package data, loop over deps and link them in from `inputs/propagated inputs' (in node_modules)
 
-;; (define (delete-minified-files . _)
-;;   "Delete minified files and their associated source mappings on the grounds
-;;    that they are build artifacts that Guix should generate from source code."
-;;   (for-each (lambda (file)
-;;               (format #t "deleting minified JavaScript file '~a'~%" file)
-;;               (delete-file file))
-;;             (find-files "." "(min\\.js|min\\.js\\.map|min\\.map)$"))
-;;   #t)
+(define* (build #:key inputs #:allow-other-keys)
+  (define (build-from-package-json? package-file)
+    (let* ((package-data (read-package-data #:filename package-file))
+           (scripts (assoc-ref package-data "scripts")))
+      (assoc-ref scripts "build")))
 
-(define* (build #:key outputs inputs #:allow-other-keys)
   "Build a new node module using the appropriate build system."
   ;; XXX: Develop a more robust heuristic, allow override
   (cond ((file-exists? "gulpfile.js")
@@ -60,10 +55,33 @@
          (invoke "grunt"))
         ((file-exists? "Makefile")
          (invoke "make"))
-        ((file-exists? "package.json")
+        ((and (file-exists? "package.json")
+              (build-from-package-json? "package.json"))
          (invoke "npm" "run" "build"))
         (else
          #t)))
+
+(define* (link-npm-dependencies #:key inputs #:allow-other-keys)
+  (define (inputs->node-inputs inputs)
+    "Filter the directory part from INPUTS."
+    (filter (lambda (input)
+              (match input
+                ((name . _) (node-package? name))))
+            inputs))
+  (define (inputs->directories inputs)
+    "Extract the directory part from INPUTS."
+    (match inputs
+      (((names . directories) ...)
+       directories)))
+  (define (make-node-path root)
+    (string-append root "/lib/node_modules/"))
+  
+  (let ((input-node-directories (inputs->directories
+                                 (inputs->node-inputs inputs))))
+    (union-build "node_modules"
+                 (map make-node-path input-node-directories))))
+
+(define configure link-npm-dependencies)
 
 (define* (check #:key tests? #:allow-other-keys)
   "Run 'npm test' if TESTS?"
@@ -88,14 +106,16 @@ is an npm global install."
       (symlink (string-append tgt-dir "/node_modules/" modulename "/bin") bin-dir))
     #t))
 
+(define (node-package? name)
+  "Check if NAME correspond to the name of an Node package."
+  (string-prefix? "node-" name))
+
 
 (define %standard-phases
   (modify-phases gnu:%standard-phases
     ;;(add-after 'unpack 'delete-minified-files delete-minified-files) ;;TODO: Use existing solution for this.
-    (delete 'configure)
-    ;; TODO: link-dependencies (patch package.json + npm install?)
+    (replace 'configure configure)
     (replace 'build build)
-    ;(delete 'build)
     (replace 'install install)
     (delete 'check)
     (add-after 'install 'check check)

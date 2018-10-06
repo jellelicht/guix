@@ -26,7 +26,7 @@
   #:use-module (web uri)
   #:use-module (guix build git)
   #:use-module (guix base32)
-  #:use-module (guix hash)
+  ;; #:use-module (guix hash)
   #:use-module ((guix download) #:prefix download:)
   #:use-module (guix serialization)
   #:use-module (guix import json)
